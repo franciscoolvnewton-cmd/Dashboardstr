@@ -26,7 +26,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Paleta de cores harmoniosa
+# Paleta de cores harmoniosa FIXA (não muda com tema do navegador)
 COLORS = {
     'primary': '#2563eb',
     'primary_light': '#3b82f6',
@@ -41,7 +41,8 @@ COLORS = {
     'gray': '#6b7280',
     'light_gray': '#f3f4f6',
     'dark_gray': '#374151',
-    'white': '#ffffff'
+    'white': '#ffffff',
+    'black': '#000000'
 }
 
 # Dados de investimento fixos para 2024 e 2025
@@ -190,100 +191,114 @@ def load_data():
     
     return None
 
-# Tela de Login Premium
+# Tela de Login Premium CORRIGIDA - sem card branco desnecessário
 def login_screen():
-    st.markdown("""
+    st.markdown(f"""
     <style>
-    .main {
+    .main {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         height: 100vh;
-    }
-    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }}
+    .stApp {{
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }}
+    .login-container {{
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
         border-radius: 20px;
         padding: 3rem;
         box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-        margin: 2rem auto;
+        margin: 0 auto;
         max-width: 500px;
         border: 1px solid rgba(255,255,255,0.2);
-    }
-    .login-title {
+    }}
+    .login-title {{
         text-align: center;
-        color: #2563eb;
+        color: {COLORS['primary']};
         font-size: 2.5rem;
         font-weight: 700;
         margin-bottom: 0.5rem;
-    }
-    .login-subtitle {
+    }}
+    .login-subtitle {{
         text-align: center;
-        color: #6b7280;
+        color: {COLORS['gray']};
         font-size: 1.1rem;
         margin-bottom: 2rem;
-    }
-    .stTextInput>div>div>input {
+    }}
+    .stTextInput>div>div>input {{
         border-radius: 12px;
         border: 2px solid #e5e7eb;
         padding: 12px 16px;
         font-size: 16px;
         transition: all 0.3s ease;
-    }
-    .stTextInput>div>div>input:focus {
-        border-color: #2563eb;
+        background-color: {COLORS['white']};
+        color: {COLORS['black']};
+    }}
+    .stTextInput>div>div>input:focus {{
+        border-color: {COLORS['primary']};
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-    }
-    .stButton>button {
+    }}
+    .stButton>button {{
         width: 100%;
         border-radius: 12px;
         padding: 12px 24px;
         font-size: 16px;
         font-weight: 600;
-        background: linear-gradient(135deg, #2563eb, #3b82f6);
+        background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
         border: none;
         transition: all 0.3s ease;
-    }
-    .stButton>button:hover {
+        color: {COLORS['white']};
+    }}
+    .stButton>button:hover {{
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
-    }
+    }}
+    /* Remove qualquer padding extra */
+    .block-container {{
+        padding-top: 0;
+        padding-bottom: 0;
+    }}
+    #root > div:nth-child(1) > div > div > div {{
+        padding-top: 0;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Container principal do login
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Container principal do login - LAYOUT SIMPLIFICADO
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
     
-    with col2:
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        
-        # Logo do login
-        login_logo = load_login_logo()
-        if login_logo:
-            st.image(login_logo, width=150, use_column_width=True)
-        else:
-            st.markdown('<div style="text-align: center; margin-bottom: 2rem;">', unsafe_allow_html=True)
-            st.markdown('<div style="font-size: 3rem; color: #2563eb;">📊</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('<h1 class="login-title">Veros Intelligence</h1>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">Dashboard de Performance e Analytics</p>', unsafe_allow_html=True)
-        
-        # Formulário de login
-        with st.form("login_form"):
-            usuario = st.text_input("👤 Usuário", placeholder="Digite seu usuário")
-            senha = st.text_input("🔒 Senha", type="password", placeholder="Digite sua senha")
-            
-            submit = st.form_submit_button("🚀 Acessar Dashboard")
-            
-            if submit:
-                if usuario in CREDENCIAIS and CREDENCIAIS[usuario] == senha:
-                    st.session_state.logged_in = True
-                    st.session_state.usuario = usuario
-                    st.success("✅ Login realizado com sucesso!")
-                    st.rerun()
-                else:
-                    st.error("❌ Usuário ou senha incorretos")
-        
+    # Logo do login
+    login_logo = load_login_logo()
+    if login_logo:
+        st.image(login_logo, width=150, use_container_width=False)
+    else:
+        st.markdown('<div style="text-align: center; margin-bottom: 2rem;">', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size: 3rem; color: {COLORS["primary"]};">📊</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown(f'<h1 class="login-title">Veros Intelligence</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p class="login-subtitle">Dashboard de Performance e Analytics</p>', unsafe_allow_html=True)
+    
+    # Formulário de login
+    with st.form("login_form"):
+        usuario = st.text_input("👤 Usuário", placeholder="Digite seu usuário")
+        senha = st.text_input("🔒 Senha", type="password", placeholder="Digite sua senha")
+        
+        submit = st.form_submit_button("🚀 Acessar Dashboard")
+        
+        if submit:
+            if usuario in CREDENCIAIS and CREDENCIAIS[usuario] == senha:
+                st.session_state.logged_in = True
+                st.session_state.usuario = usuario
+                st.success("✅ Login realizado com sucesso!")
+                st.rerun()
+            else:
+                st.error("❌ Usuário ou senha incorretos")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Função para criar matriz escadinha de Receita
 def criar_matriz_escadinha(df, ano_filtro=2025):
@@ -567,20 +582,22 @@ def criar_heatmap_matriz(matriz, titulo, colorscale='Blues', width=500, height=4
     fig.update_layout(
         title=dict(
             text=titulo,
-            font=dict(size=14)
+            font=dict(size=14, color=COLORS['dark_gray'])
         ),
         xaxis_title="Mês de Geração do Lead",
         yaxis_title="Mês de Geração da Receita",
         width=width,
         height=height,
-        font=dict(family="Arial, sans-serif", size=10),
+        font=dict(family="Arial, sans-serif", size=10, color=COLORS['dark_gray']),
         xaxis=dict(
             tickangle=45,
-            tickfont=dict(size=8)
+            tickfont=dict(size=8, color=COLORS['dark_gray'])
         ),
         yaxis=dict(
-            tickfont=dict(size=8)
-        )
+            tickfont=dict(size=8, color=COLORS['dark_gray'])
+        ),
+        plot_bgcolor=COLORS['white'],
+        paper_bgcolor=COLORS['white']
     )
     
     return fig
@@ -940,7 +957,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                     font=dict(size=18, color=COLORS['dark_gray']),
                     standoff=20
                 ),
-                tickfont=dict(size=16, color=COLORS['gray']),
+                tickfont=dict(size=16, color=COLORS['dark_gray']),
                 gridcolor=COLORS['light_gray'],
                 linecolor=COLORS['light_gray'],
                 showgrid=True,
@@ -951,7 +968,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                     font=dict(size=18, color=COLORS['dark_gray']),
                     standoff=20
                 ),
-                tickfont=dict(size=16, color=COLORS['gray']),
+                tickfont=dict(size=16, color=COLORS['dark_gray']),
                 gridcolor=COLORS['light_gray'],
                 linecolor=COLORS['light_gray'],
                 showgrid=True,
@@ -960,7 +977,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
             ),
             legend=dict(
                 font=dict(size=16, color=COLORS['dark_gray']),
-                bgcolor='rgba(255,255,255,0.9)',
+                bgcolor=COLORS['white'],
                 bordercolor=COLORS['light_gray'],
                 borderwidth=1,
                 orientation="h",
@@ -997,7 +1014,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                     font=dict(size=16, color=COLORS['dark_gray']),
                     standoff=20
                 ),
-                tickfont=dict(size=14, color=COLORS['gray']),
+                tickfont=dict(size=14, color=COLORS['dark_gray']),
                 gridcolor=COLORS['light_gray'],
                 linecolor=COLORS['light_gray'],
                 showgrid=True,
@@ -1008,7 +1025,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                     font=dict(size=16, color=COLORS['dark_gray']),
                     standoff=20
                 ),
-                tickfont=dict(size=14, color=COLORS['gray']),
+                tickfont=dict(size=14, color=COLORS['dark_gray']),
                 gridcolor=COLORS['light_gray'],
                 linecolor=COLORS['light_gray'],
                 showgrid=True,
@@ -1017,7 +1034,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
             ),
             legend=dict(
                 font=dict(size=14, color=COLORS['dark_gray']),
-                bgcolor='rgba(255,255,255,0.9)',
+                bgcolor=COLORS['white'],
                 bordercolor=COLORS['light_gray'],
                 borderwidth=1,
                 orientation="h",
@@ -1043,12 +1060,17 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
 
 # Interface principal do dashboard
 def main_dashboard():
-    # Configuração CSS com design limpo e profissional
+    # Configuração CSS com design limpo e profissional COM CORES FIXAS
     st.markdown(f"""
     <style>
     .main .block-container {{
         padding-top: 2rem;
         padding-bottom: 2rem;
+        background-color: {COLORS['white']};
+    }}
+    
+    .stApp {{
+        background-color: {COLORS['white']};
     }}
     
     h1, h2, h3 {{
@@ -1114,13 +1136,13 @@ def main_dashboard():
     
     .stTabs [aria-selected="true"] {{
         background-color: {COLORS['primary']};
-        color: white;
+        color: {COLORS['white']};
         box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
     }}
     
     /* Estilos para a matriz escadinha */
     .matriz-container {{
-        background: white;
+        background: {COLORS['white']};
         border-radius: 12px;
         padding: 1.5rem;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
@@ -1150,7 +1172,7 @@ def main_dashboard():
     }}
     
     .metrica-card {{
-        background: white;
+        background: {COLORS['white']};
         border-radius: 8px;
         padding: 1rem;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -1187,14 +1209,14 @@ def main_dashboard():
     
     .section-header {{
         background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
-        color: white;
+        color: {COLORS['white']};
         padding: 1.5rem;
         border-radius: 12px;
         margin: 2rem 0;
     }}
     
     .section-title {{
-        color: white !important;
+        color: {COLORS['white']} !important;
         margin: 0 !important;
         font-size: 1.5rem !important;
     }}
@@ -1235,7 +1257,7 @@ def main_dashboard():
     
     .dataframe th {{
         background-color: {COLORS['primary']};
-        color: white;
+        color: {COLORS['white']};
         padding: 12px;
         text-align: left;
         font-weight: 600;
@@ -1244,9 +1266,21 @@ def main_dashboard():
     .dataframe td {{
         padding: 10px;
         border-bottom: 1px solid {COLORS['light_gray']};
+        color: {COLORS['dark_gray']};
+        background-color: {COLORS['white']};
     }}
     
     .dataframe tr:hover {{
+        background-color: {COLORS['light_gray']};
+    }}
+    
+    /* Corrigir cores de texto em toda a aplicação */
+    p, div, span, li {{
+        color: {COLORS['dark_gray']};
+    }}
+    
+    /* Sidebar styles */
+    .css-1d391kg {{
         background-color: {COLORS['light_gray']};
     }}
     </style>
@@ -1333,7 +1367,7 @@ def main_dashboard():
         performance_lp = analisar_performance_lp(df, ano_filtro=ano_selecionado)
         performance_mensal_lp = analisar_performance_mensal_lp(df, ano_filtro=ano_selecionado)
     
-    # SISTEMA DE ABAS
+    # SISTEMA DE ABAS - CORRIGIDO use_container_width
     tab1, tab2, tab3 = st.tabs([
         "Visão Geral", 
         "Matrizes Escadinha",
@@ -1341,7 +1375,7 @@ def main_dashboard():
     ])
     
     with tab1:
-        st.markdown('<div class="section-header"><h2 class="section-title">Visão Geral do Performance</h2><p class="section-subtitle">Métricas consolidadas e tendências do período</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Visão Geral do Performance</h2><p class="section-subtitle">Métricas consolidadas e tendências do período</p></div>', unsafe_allow_html=True)
         
         if not receita_mensal.empty:
             # Métricas Principais em Grid
@@ -1419,7 +1453,7 @@ def main_dashboard():
             st.warning("Não há dados disponíveis para o período selecionado")
     
     with tab2:
-        st.markdown('<div class="section-header"><h2 class="section-title">Matrizes Escadinha - Análise Temporal Completa</h2><p class="section-subtitle">Relação entre geração de receita e geração de leads</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Matrizes Escadinha - Análise Temporal Completa</h2><p class="section-subtitle">Relação entre geração de receita e geração de leads</p></div>', unsafe_allow_html=True)
         
         st.markdown(f"""
         <div class="info-box">
@@ -1429,7 +1463,7 @@ def main_dashboard():
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown("""
+        st.markdown(f"""
         <div class="matriz-stats">
             <h4>📊 Como interpretar as Matrizes Escadinha:</h4>
             <ul>
@@ -1488,7 +1522,7 @@ def main_dashboard():
             
             with analise_tab1:
                 if estatisticas_receita:
-                    st.markdown("""
+                    st.markdown(f"""
                     <div class="matriz-stats">
                         <h4>Análise da Matriz de Receita</h4>
                     </div>
@@ -1508,13 +1542,13 @@ def main_dashboard():
                     
                     if matriz_formatada_receita is not None:
                         st.subheader("Tabela Detalhada - Receita")
-                        st.dataframe(matriz_formatada_receita, use_container_width=True, height=300)
+                        st.dataframe(matriz_formatada_receita, use_container_width=True)
                 else:
                     st.warning("Não há dados disponíveis para a matriz de Receita")
             
             with analise_tab2:
                 if estatisticas_cac:
-                    st.markdown("""
+                    st.markdown(f"""
                     <div class="matriz-stats">
                         <h4>Análise da Matriz de CAC</h4>
                     </div>
@@ -1537,13 +1571,13 @@ def main_dashboard():
                     
                     if matriz_formatada_cac is not None:
                         st.subheader("Tabela Detalhada - CAC")
-                        st.dataframe(matriz_formatada_cac, use_container_width=True, height=300)
+                        st.dataframe(matriz_formatada_cac, use_container_width=True)
                 else:
                     st.warning("Não há dados disponíveis para a matriz de CAC")
             
             with analise_tab3:
                 if estatisticas_ltv:
-                    st.markdown("""
+                    st.markdown(f"""
                     <div class="matriz-stats">
                         <h4>Análise da Matriz de LTV</h4>
                     </div>
@@ -1566,13 +1600,13 @@ def main_dashboard():
                     
                     if matriz_formatada_ltv is not None:
                         st.subheader("Tabela Detalhada - LTV")
-                        st.dataframe(matriz_formatada_ltv, use_container_width=True, height=300)
+                        st.dataframe(matriz_formatada_ltv, use_container_width=True)
                 else:
                     st.warning("Não há dados disponíveis para a matriz de LTV")
             
             with analise_tab4:
                 if estatisticas_cac_ltv:
-                    st.markdown("""
+                    st.markdown(f"""
                     <div class="matriz-stats">
                         <h4>Análise da Matriz de CAC/LTV</h4>
                     </div>
@@ -1605,7 +1639,7 @@ def main_dashboard():
                     
                     if matriz_formatada_cac_ltv is not None:
                         st.subheader("Tabela Detalhada - CAC/LTV")
-                        st.dataframe(matriz_formatada_cac_ltv, use_container_width=True, height=300)
+                        st.dataframe(matriz_formatada_cac_ltv, use_container_width=True)
                 else:
                     st.warning("Não há dados disponíveis para a matriz de CAC/LTV")
             
@@ -1615,7 +1649,7 @@ def main_dashboard():
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("""
+                st.markdown(f"""
                 <div class="matriz-stats">
                     <h4>🎯 Pontos Fortes</h4>
                     <ul>
@@ -1627,7 +1661,7 @@ def main_dashboard():
                 """, unsafe_allow_html=True)
             
             with col2:
-                st.markdown("""
+                st.markdown(f"""
                 <div class="matriz-stats">
                     <h4>🚀 Oportunidades</h4>
                     <ul>
@@ -1639,7 +1673,7 @@ def main_dashboard():
                 """, unsafe_allow_html=True)
     
     with tab3:
-        st.markdown('<div class="section-header"><h2 class="section-title">Análise de Performance por Landing Page</h2><p class="section-subtitle">Métricas detalhadas por canal de aquisição</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Análise de Performance por Landing Page</h2><p class="section-subtitle">Métricas detalhadas por canal de aquisição</p></div>', unsafe_allow_html=True)
         
         total_investimento_lp = sum(INVESTIMENTO_POR_LP.values())
         
