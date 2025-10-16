@@ -42,7 +42,8 @@ COLORS = {
     'light_gray': '#f3f4f6',
     'dark_gray': '#374151',
     'white': '#ffffff',
-    'black': '#000000'
+    'black': '#000000',
+    'sidebar_bg': '#ffffff'
 }
 
 # Dados de investimento fixos para 2024 e 2025
@@ -191,56 +192,70 @@ def load_data():
     
     return None
 
-# Tela de Login Premium CORRIGIDA - sem card branco desnecessário
+# Tela de Login Premium CORRIGIDA - fundo branco e sem balão branco
 def login_screen():
     st.markdown(f"""
     <style>
+    /* Fundo branco para toda a aplicação */
     .main {{
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        background-color: {COLORS['white']} !important;
     }}
+    
     .stApp {{
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background-color: {COLORS['white']} !important;
     }}
+    
+    /* Remove qualquer elemento de fundo com gradiente */
+    .stApp > header {{
+        background-color: {COLORS['white']} !important;
+    }}
+    
+    .stApp > div {{
+        background-color: {COLORS['white']} !important;
+    }}
+    
+    /* Container de login centralizado e estilizado */
     .login-container {{
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
+        background-color: {COLORS['white']} !important;
         border-radius: 20px;
         padding: 3rem;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-        margin: 0 auto;
+        margin: 2rem auto;
         max-width: 500px;
-        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        border: 1px solid {COLORS['light_gray']};
+        text-align: center;
     }}
+    
     .login-title {{
         text-align: center;
-        color: {COLORS['primary']};
+        color: {COLORS['primary']} !important;
         font-size: 2.5rem;
         font-weight: 700;
         margin-bottom: 0.5rem;
     }}
+    
     .login-subtitle {{
         text-align: center;
-        color: {COLORS['gray']};
+        color: {COLORS['gray']} !important;
         font-size: 1.1rem;
         margin-bottom: 2rem;
     }}
+    
     .stTextInput>div>div>input {{
         border-radius: 12px;
-        border: 2px solid #e5e7eb;
+        border: 2px solid {COLORS['light_gray']};
         padding: 12px 16px;
         font-size: 16px;
         transition: all 0.3s ease;
         background-color: {COLORS['white']};
         color: {COLORS['black']};
     }}
+    
     .stTextInput>div>div>input:focus {{
         border-color: {COLORS['primary']};
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
     }}
+    
     .stButton>button {{
         width: 100%;
         border-radius: 12px;
@@ -252,32 +267,60 @@ def login_screen():
         transition: all 0.3s ease;
         color: {COLORS['white']};
     }}
+    
     .stButton>button:hover {{
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
     }}
-    /* Remove qualquer padding extra */
+    
+    /* Remove qualquer padding extra e elementos desnecessários */
     .block-container {{
-        padding-top: 0;
-        padding-bottom: 0;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        background-color: {COLORS['white']} !important;
     }}
+    
     #root > div:nth-child(1) > div > div > div {{
-        padding-top: 0;
+        padding-top: 0 !important;
+        background-color: {COLORS['white']} !important;
+    }}
+    
+    /* Remove qualquer balão ou card branco desnecessário */
+    div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"]) {{
+        background-color: {COLORS['white']} !important;
+    }}
+    
+    /* Estilo para a imagem de login */
+    .login-image-container {{
+        margin-bottom: 2rem;
+        text-align: center;
+    }}
+    
+    .login-image {{
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        max-width: 200px;
+        margin: 0 auto;
+    }}
+    
+    /* Garante que todos os textos tenham cor escura */
+    p, div, span, label {{
+        color: {COLORS['dark_gray']} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Container principal do login - LAYOUT SIMPLIFICADO
+    # Container principal do login - LAYOUT SIMPLIFICADO E LIMPO
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     
-    # Logo do login
+    # Logo do login com destaque
     login_logo = load_login_logo()
+    st.markdown('<div class="login-image-container">', unsafe_allow_html=True)
     if login_logo:
-        st.image(login_logo, width=150, use_container_width=False)
+        st.image(login_logo, width=180, use_container_width=False, output_format='auto')
     else:
-        st.markdown('<div style="text-align: center; margin-bottom: 2rem;">', unsafe_allow_html=True)
-        st.markdown(f'<div style="font-size: 3rem; color: {COLORS["primary"]};">📊</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size: 4rem; color: {COLORS["primary"]}; margin-bottom: 1rem;">📊</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown(f'<h1 class="login-title">Veros Intelligence</h1>', unsafe_allow_html=True)
     st.markdown(f'<p class="login-subtitle">Dashboard de Performance e Analytics</p>', unsafe_allow_html=True)
@@ -1063,14 +1106,45 @@ def main_dashboard():
     # Configuração CSS com design limpo e profissional COM CORES FIXAS
     st.markdown(f"""
     <style>
+    /* FUNDO BRANCO PARA TODA A APLICAÇÃO */
     .main .block-container {{
         padding-top: 2rem;
         padding-bottom: 2rem;
-        background-color: {COLORS['white']};
+        background-color: {COLORS['white']} !important;
     }}
     
     .stApp {{
-        background-color: {COLORS['white']};
+        background-color: {COLORS['white']} !important;
+    }}
+    
+    /* SIDEBAR BRANCA */
+    section[data-testid="stSidebar"] > div {{
+        background-color: {COLORS['sidebar_bg']} !important;
+    }}
+    
+    section[data-testid="stSidebar"] .stButton>button {{
+        background-color: {COLORS['primary']} !important;
+        color: {COLORS['white']} !important;
+    }}
+    
+    section[data-testid="stSidebar"] .stSelectbox>div>div {{
+        background-color: {COLORS['white']} !important;
+        border-color: {COLORS['light_gray']} !important;
+    }}
+    
+    section[data-testid="stSidebar"] .stTextInput>div>div>input {{
+        background-color: {COLORS['white']} !important;
+        border-color: {COLORS['light_gray']} !important;
+        color: {COLORS['dark_gray']} !important;
+    }}
+    
+    section[data-testid="stSidebar"] h1, 
+    section[data-testid="stSidebar"] h2, 
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] div,
+    section[data-testid="stSidebar"] span {{
+        color: {COLORS['dark_gray']} !important;
     }}
     
     h1, h2, h3 {{
@@ -1276,12 +1350,14 @@ def main_dashboard():
     
     /* Corrigir cores de texto em toda a aplicação */
     p, div, span, li {{
-        color: {COLORS['dark_gray']};
+        color: {COLORS['dark_gray']} !important;
     }}
     
-    /* Sidebar styles */
-    .css-1d391kg {{
-        background-color: {COLORS['light_gray']};
+    /* Botão de logout */
+    .stButton>button[kind="secondary"] {{
+        background-color: {COLORS['accent_light']} !important;
+        color: {COLORS['white']} !important;
+        border: none;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -1320,7 +1396,7 @@ def main_dashboard():
         st.write("- Na pasta `dados/`: `dados/DADOS_RECEITA_VEROS.xlsx`")
         return
     
-    # Sidebar com filtros
+    # Sidebar com filtros - AGORA COM FUNDO BRANCO
     with st.sidebar:
         st.header("Filtros e Configurações")
         st.info(f"Dataset carregado: {len(df)} registros")
