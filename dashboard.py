@@ -92,52 +92,94 @@ INVESTIMENTO_POR_LP = {
 # Função para carregar o logo
 @st.cache_data
 def load_logo():
-    logo_path = r"C:\Users\USER\Downloads\images.jpg"
-    try:
-        if os.path.exists(logo_path):
-            logo = Image.open(logo_path)
-            return logo
-        else:
-            st.warning("⚠️ Logo não encontrado no caminho especificado")
-            return None
-    except Exception as e:
-        st.warning(f"⚠️ Erro ao carregar logo: {e}")
-        return None
+    # Caminhos relativos para deploy
+    caminhos_logo = [
+        "images.jpg",
+        "logo.jpg", 
+        "logo.png",
+        "assets/images.jpg",
+        "assets/logo.jpg",
+        "assets/logo.png"
+    ]
+    
+    for logo_path in caminhos_logo:
+        try:
+            if os.path.exists(logo_path):
+                logo = Image.open(logo_path)
+                st.success(f"Logo carregado: {logo_path}")
+                return logo
+        except Exception as e:
+            continue
+    
+    st.warning("⚠️ Logo não encontrado. Usando placeholder.")
+    return None
 
 # Função para carregar e processar os dados
 @st.cache_data
 def load_data():
-    file_path = r"C:\Users\USER\Documents\Veros_DataHub\DADOS_RECEITA_VEROS.xlsx"
+    # Caminhos relativos para deploy
+    caminhos_dados = [
+        "DADOS_RECEITA_VEROS.xlsx",
+        "data/DADOS_RECEITA_VEROS.xlsx",
+        "assets/DADOS_RECEITA_VEROS.xlsx",
+        "dados/DADOS_RECEITA_VEROS.xlsx"
+    ]
     
-    try:
-        # Carregar os dados
-        df = pd.read_excel(file_path, engine='openpyxl')
-        
-        # Verificar se as colunas necessárias existem
-        colunas_necessarias = ['Mês geração receita', 'Mês geração lead', 'Considerar?', 'LP', 'VL UNI', 'E-MAIL']
-        colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
-        
-        if colunas_faltantes:
-            st.warning(f"⚠️ Colunas faltantes no dataset: {', '.join(colunas_faltantes)}")
-            st.info("📋 Colunas disponíveis no seu arquivo:")
-            st.write(list(df.columns))
-        
-        # Converter colunas de data
-        date_columns = ['DT Receita', 'Data do lead', 'Data e-mail', 'Data e-mail corrigido', 'Data telefone']
-        for col in date_columns:
-            if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-        
-        # Converter valor unitário para numérico
-        if 'VL UNI' in df.columns:
-            df['VL UNI'] = pd.to_numeric(df['VL UNI'], errors='coerce')
-        
-        return df
+    for file_path in caminhos_dados:
+        try:
+            if os.path.exists(file_path):
+                # Carregar os dados
+                df = pd.read_excel(file_path, engine='openpyxl')
+                st.success(f"Dados carregados: {file_path}")
+                
+                # Verificar se as colunas necessárias existem
+                colunas_necessarias = ['Mês geração receita', 'Mês geração lead', 'Considerar?', 'LP', 'VL UNI', 'E-MAIL']
+                colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
+                
+                if colunas_faltantes:
+                    st.warning(f"⚠️ Colunas faltantes no dataset: {', '.join(colunas_faltantes)}")
+                    st.info("📋 Colunas disponíveis no seu arquivo:")
+                    st.write(list(df.columns))
+                
+                # Converter colunas de data
+                date_columns = ['DT Receita', 'Data do lead', 'Data e-mail', 'Data e-mail corrigido', 'Data telefone']
+                for col in date_columns:
+                    if col in df.columns:
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                
+                # Converter valor unitário para numérico
+                if 'VL UNI' in df.columns:
+                    df['VL UNI'] = pd.to_numeric(df['VL UNI'], errors='coerce')
+                
+                return df
+        except Exception as e:
+            st.error(f"❌ Erro ao carregar o arquivo {file_path}: {e}")
+            continue
     
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar o arquivo: {e}")
-        st.info("💡 Verifique se o arquivo existe e se todas as dependências estão instaladas")
-        return None
+    # Se nenhum arquivo foi encontrado, mostrar uploader
+    st.error("❌ Nenhum arquivo de dados encontrado nos caminhos padrão.")
+    
+    # Upload de arquivo alternativo
+    uploaded_file = st.file_uploader("📤 Faça upload do arquivo DADOS_RECEITA_VEROS.xlsx", type="xlsx")
+    
+    if uploaded_file is not None:
+        try:
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
+            st.success("✅ Arquivo carregado via upload!")
+            
+            # Verificar se as colunas necessárias existem
+            colunas_necessarias = ['Mês geração receita', 'Mês geração lead', 'Considerar?', 'LP', 'VL UNI', 'E-MAIL']
+            colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
+            
+            if colunas_faltantes:
+                st.warning(f"⚠️ Colunas faltantes no dataset: {', '.join(colunas_faltantes)}")
+            
+            return df
+        except Exception as e:
+            st.error(f"❌ Erro ao processar arquivo upload: {e}")
+            return None
+    
+    return None
 
 # Função para criar matriz escadinha de Receita - CORRIGIDA
 def criar_matriz_escadinha(df, ano_filtro=2025):
@@ -1274,19 +1316,18 @@ def main():
     
     st.markdown("---")
     
-    # Verificar se arquivo existe
-    file_path = r"C:\Users\USER\Documents\Veros_DataHub\DADOS_RECEITA_VEROS.xlsx"
-    if not os.path.exists(file_path):
-        st.error(f"Arquivo não encontrado: {file_path}")
-        st.info("Verifique se o caminho do arquivo está correto")
-        return
-    
     # Carregar dados
     with st.spinner("Carregando e analisando dados..."):
         df = load_data()
     
     if df is None:
-        st.stop()
+        st.warning("📁 Para usar o dashboard, faça upload do arquivo de dados ou coloque o arquivo 'DADOS_RECEITA_VEROS.xlsx' na pasta do projeto.")
+        st.info("💡 Você pode fazer upload do arquivo usando o seletor acima ou colocar o arquivo em uma das seguintes pastas:")
+        st.write("- Na raiz do projeto: `DADOS_RECEITA_VEROS.xlsx`")
+        st.write("- Na pasta `data/`: `data/DADOS_RECEITA_VEROS.xlsx`")
+        st.write("- Na pasta `assets/`: `assets/DADOS_RECEITA_VEROS.xlsx`")
+        st.write("- Na pasta `dados/`: `dados/DADOS_RECEITA_VEROS.xlsx`")
+        return
     
     # Sidebar com filtros
     with st.sidebar:
