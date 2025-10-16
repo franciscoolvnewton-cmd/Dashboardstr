@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import sys
-import subprocess
 import os
 from PIL import Image
 import base64
@@ -10,47 +8,7 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
-# Verificar e instalar dependências missing
-def install_missing_dependencies():
-    missing_deps = []
-    try:
-        import openpyxl
-    except ImportError:
-        missing_deps.append('openpyxl')
-    
-    try:
-        import plotly
-    except ImportError:
-        missing_deps.append('plotly')
-    
-    try:
-        from sklearn.linear_model import LinearRegression
-    except ImportError:
-        missing_deps.append('scikit-learn')
-    
-    try:
-        from sklearn.ensemble import RandomForestRegressor
-    except ImportError:
-        missing_deps.append('scikit-learn')
-    
-    if missing_deps:
-        st.error(f"📦 Dependências missing: {', '.join(missing_deps)}")
-        st.info("🔧 Instalando dependências automaticamente...")
-        
-        for dep in missing_deps:
-            try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", dep])
-                st.success(f"✅ {dep} instalado com sucesso!")
-            except subprocess.CalledProcessError:
-                st.error(f"❌ Falha ao instalar {dep}")
-                st.stop()
-        
-        st.rerun()
-
-# Instalar dependências se necessário
-install_missing_dependencies()
-
-# Agora importe as bibliotecas após a instalação
+# Importações das bibliotecas de análise
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -59,7 +17,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
 import scipy.stats as stats
-import numpy as np
 
 # Configuração da página
 st.set_page_config(
@@ -179,7 +136,7 @@ def load_data():
     
     except Exception as e:
         st.error(f"❌ Erro ao carregar o arquivo: {e}")
-        st.info("💡 Solução: Execute no terminal: pip install openpyxl")
+        st.info("💡 Verifique se o arquivo existe e se todas as dependências estão instaladas")
         return None
 
 # Função para criar matriz escadinha de Receita - CORRIGIDA
