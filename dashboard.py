@@ -156,7 +156,7 @@ def load_data():
                 colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
                 
                 if colunas_faltantes:
-                    st.warning(f"⚠️ Colunas faltantes no dataset: {', '.join(colunas_faltantes)}")
+                    st.warning(f"Colunas faltantes no dataset: {', '.join(colunas_faltantes)}")
                 
                 date_columns = ['DT Receita', 'Data do lead', 'Data e-mail', 'Data e-mail corrigido', 'Data telefone']
                 for col in date_columns:
@@ -170,29 +170,29 @@ def load_data():
         except Exception as e:
             continue
     
-    st.error("❌ Nenhum arquivo de dados encontrado nos caminhos padrão.")
+    st.error("Nenhum arquivo de dados encontrado nos caminhos padrão.")
     
-    uploaded_file = st.file_uploader("📤 Faça upload do arquivo DADOS_RECEITA_VEROS.xlsx", type="xlsx")
+    uploaded_file = st.file_uploader("Faça upload do arquivo DADOS_RECEITA_VEROS.xlsx", type="xlsx")
     
     if uploaded_file is not None:
         try:
             df = pd.read_excel(uploaded_file, engine='openpyxl')
-            st.success("✅ Arquivo carregado via upload!")
+            st.success("Arquivo carregado via upload!")
             
             colunas_necessarias = ['Mês geração receita', 'Mês geração lead', 'Considerar?', 'LP', 'VL UNI', 'E-MAIL']
             colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
             
             if colunas_faltantes:
-                st.warning(f"⚠️ Colunas faltantes no dataset: {', '.join(colunas_faltantes)}")
+                st.warning(f"Colunas faltantes no dataset: {', '.join(colunas_faltantes)}")
             
             return df
         except Exception as e:
-            st.error(f"❌ Erro ao processar arquivo upload: {e}")
+            st.error(f"Erro ao processar arquivo upload: {e}")
             return None
     
     return None
 
-# Tela de Login Premium CORRIGIDA - fundo branco e sem balão branco
+# Tela de Login Premium REVISADA - Layout limpo e minimalista
 def login_screen():
     st.markdown(f"""
     <style>
@@ -214,14 +214,23 @@ def login_screen():
         background-color: {COLORS['white']} !important;
     }}
     
-    /* Container de login centralizado e estilizado */
+    /* Container de login centralizado e minimalista */
+    .login-main-container {{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: {COLORS['white']};
+        padding: 20px;
+    }}
+    
     .login-container {{
         background-color: {COLORS['white']} !important;
-        border-radius: 20px;
-        padding: 3rem;
-        margin: 2rem auto;
-        max-width: 500px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        border-radius: 16px;
+        padding: 2.5rem;
+        max-width: 420px;
+        width: 100%;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.08);
         border: 1px solid {COLORS['light_gray']};
         text-align: center;
     }}
@@ -229,7 +238,7 @@ def login_screen():
     .login-title {{
         text-align: center;
         color: {COLORS['primary']} !important;
-        font-size: 2.5rem;
+        font-size: 2.2rem;
         font-weight: 700;
         margin-bottom: 0.5rem;
     }}
@@ -237,15 +246,15 @@ def login_screen():
     .login-subtitle {{
         text-align: center;
         color: {COLORS['gray']} !important;
-        font-size: 1.1rem;
+        font-size: 1rem;
         margin-bottom: 2rem;
     }}
     
     .stTextInput>div>div>input {{
-        border-radius: 12px;
-        border: 2px solid {COLORS['light_gray']};
-        padding: 12px 16px;
-        font-size: 16px;
+        border-radius: 10px;
+        border: 1.5px solid {COLORS['light_gray']};
+        padding: 10px 14px;
+        font-size: 14px;
         transition: all 0.3s ease;
         background-color: {COLORS['white']};
         color: {COLORS['black']};
@@ -253,14 +262,14 @@ def login_screen():
     
     .stTextInput>div>div>input:focus {{
         border-color: {COLORS['primary']};
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
     }}
     
     .stButton>button {{
         width: 100%;
-        border-radius: 12px;
-        padding: 12px 24px;
-        font-size: 16px;
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-size: 15px;
         font-weight: 600;
         background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
         border: none;
@@ -269,8 +278,8 @@ def login_screen():
     }}
     
     .stButton>button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 15px rgba(37, 99, 235, 0.25);
     }}
     
     /* Remove qualquer padding extra e elementos desnecessários */
@@ -292,14 +301,14 @@ def login_screen():
     
     /* Estilo para a imagem de login */
     .login-image-container {{
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
         text-align: center;
     }}
     
     .login-image {{
-        border-radius: 15px;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        max-width: 200px;
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        max-width: 220px;
         margin: 0 auto;
     }}
     
@@ -307,17 +316,35 @@ def login_screen():
     p, div, span, label {{
         color: {COLORS['dark_gray']} !important;
     }}
+    
+    /* Remove elementos suspensos */
+    .element-container:has(> .stAlert) {{
+        display: none !important;
+    }}
+    
+    /* Form container mais compacto */
+    .login-form-container {{
+        margin-top: 1rem;
+    }}
+    
+    /* Remove margens extras */
+    .stForm {{
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Container principal do login - LAYOUT SIMPLIFICADO E LIMPO
+    # Container principal do login - LAYOUT MINIMALISTA
+    st.markdown('<div class="login-main-container">', unsafe_allow_html=True)
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     
     # Logo do login com destaque
     login_logo = load_login_logo()
     st.markdown('<div class="login-image-container">', unsafe_allow_html=True)
     if login_logo:
-        st.image(login_logo, width=180, use_container_width=False, output_format='auto')
+        st.image(login_logo, width=220, use_container_width=False, output_format='auto')
     else:
         st.markdown(f'<div style="font-size: 4rem; color: {COLORS["primary"]}; margin-bottom: 1rem;">📊</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -325,7 +352,8 @@ def login_screen():
     st.markdown(f'<h1 class="login-title">Veros Intelligence</h1>', unsafe_allow_html=True)
     st.markdown(f'<p class="login-subtitle">Dashboard de Performance e Analytics</p>', unsafe_allow_html=True)
     
-    # Formulário de login
+    # Formulário de login compacto
+    st.markdown('<div class="login-form-container">', unsafe_allow_html=True)
     with st.form("login_form"):
         usuario = st.text_input("👤 Usuário", placeholder="Digite seu usuário")
         senha = st.text_input("🔒 Senha", type="password", placeholder="Digite sua senha")
@@ -336,11 +364,13 @@ def login_screen():
             if usuario in CREDENCIAIS and CREDENCIAIS[usuario] == senha:
                 st.session_state.logged_in = True
                 st.session_state.usuario = usuario
-                st.success("✅ Login realizado com sucesso!")
+                st.success("Login realizado com sucesso!")
                 st.rerun()
             else:
-                st.error("❌ Usuário ou senha incorretos")
+                st.error("Usuário ou senha incorretos")
+    st.markdown('</div>', unsafe_allow_html=True)
     
+    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Função para criar matriz escadinha de Receita
@@ -1353,11 +1383,16 @@ def main_dashboard():
         color: {COLORS['dark_gray']} !important;
     }}
     
-    /* Botão de logout */
+    /* Botão de logout BRANCO */
     .stButton>button[kind="secondary"] {{
-        background-color: {COLORS['accent_light']} !important;
-        color: {COLORS['white']} !important;
-        border: none;
+        background-color: {COLORS['white']} !important;
+        color: {COLORS['dark_gray']} !important;
+        border: 1px solid {COLORS['light_gray']} !important;
+    }}
+    
+    .stButton>button[kind="secondary"]:hover {{
+        background-color: {COLORS['light_gray']} !important;
+        border-color: {COLORS['gray']} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -1377,7 +1412,7 @@ def main_dashboard():
         st.markdown("Análise preditiva e insights automatizados")
     
     with col3:
-        if st.button("🚪 Sair"):
+        if st.button("Sair"):
             st.session_state.logged_in = False
             st.rerun()
     
@@ -1388,12 +1423,12 @@ def main_dashboard():
         df = load_data()
     
     if df is None:
-        st.warning("📁 Para usar o dashboard, faça upload do arquivo de dados ou coloque o arquivo 'DADOS_RECEITA_VEROS.xlsx' na pasta do projeto.")
-        st.info("💡 Você pode fazer upload do arquivo usando o seletor acima ou colocar o arquivo em uma das seguintes pastas:")
-        st.write("- Na raiz do projeto: `DADOS_RECEITA_VEROS.xlsx`")
-        st.write("- Na pasta `data/`: `data/DADOS_RECEITA_VEROS.xlsx`")
-        st.write("- Na pasta `assets/`: `assets/DADOS_RECEITA_VEROS.xlsx`")
-        st.write("- Na pasta `dados/`: `dados/DADOS_RECEITA_VEROS.xlsx`")
+        st.warning("Para usar o dashboard, faça upload do arquivo de dados ou coloque o arquivo 'DADOS_RECEITA_VEROS.xlsx' na pasta do projeto.")
+        st.info("Você pode fazer upload do arquivo usando o seletor acima ou colocar o arquivo em uma das seguintes pastas:")
+        st.write("- Na raiz do projeto: DADOS_RECEITA_VEROS.xlsx")
+        st.write("- Na pasta data/: data/DADOS_RECEITA_VEROS.xlsx")
+        st.write("- Na pasta assets/: assets/DADOS_RECEITA_VEROS.xlsx")
+        st.write("- Na pasta dados/: dados/DADOS_RECEITA_VEROS.xlsx")
         return
     
     # Sidebar com filtros - AGORA COM FUNDO BRANCO
@@ -1443,11 +1478,11 @@ def main_dashboard():
         performance_lp = analisar_performance_lp(df, ano_filtro=ano_selecionado)
         performance_mensal_lp = analisar_performance_mensal_lp(df, ano_filtro=ano_selecionado)
     
-    # SISTEMA DE ABAS - CORRIGIDO use_container_width
+    # SISTEMA DE ABAS - SEM EMOJIS
     tab1, tab2, tab3 = st.tabs([
         "Visão Geral", 
         "Matrizes Escadinha",
-        "📊 Análise de LPs"
+        "Análise de LPs"
     ])
     
     with tab1:
@@ -1533,7 +1568,7 @@ def main_dashboard():
         
         st.markdown(f"""
         <div class="info-box">
-            <h4>📅 Período Selecionado: {ano_selecionado}</h4>
+            <h4>Período Selecionado: {ano_selecionado}</h4>
             <p>As matrizes abaixo mostram apenas os dados do ano {ano_selecionado}. 
             Para analisar outro período, altere o filtro na barra lateral.</p>
         </div>
@@ -1541,7 +1576,7 @@ def main_dashboard():
         
         st.markdown(f"""
         <div class="matriz-stats">
-            <h4>📊 Como interpretar as Matrizes Escadinha:</h4>
+            <h4>Como interpretar as Matrizes Escadinha:</h4>
             <ul>
                 <li><strong>Eixo Y (Linhas):</strong> Mês de Geração da Receita</li>
                 <li><strong>Eixo X (Colunas):</strong> Mês de Geração do Lead</li>
@@ -1555,11 +1590,11 @@ def main_dashboard():
            (matriz_cac is None or matriz_cac.empty) and \
            (matriz_ltv is None or matriz_ltv.empty) and \
            (matriz_cac_ltv is None or matriz_cac_ltv.empty):
-            st.warning(f"⚠️ Não há dados disponíveis para criar as matrizes escadinha do ano {ano_selecionado}.")
-            st.info("💡 Tente selecionar outro ano ou verifique se os dados estão corretamente formatados.")
+            st.warning(f"Não há dados disponíveis para criar as matrizes escadinha do ano {ano_selecionado}.")
+            st.info("Tente selecionar outro ano ou verifique se os dados estão corretamente formatados.")
         else:
             # SEÇÃO 1: VISUALIZAÇÕES DAS MATRIZES (SEM RÓTULOS)
-            st.subheader("📈 Visualizações das Matrizes")
+            st.subheader("Visualizações das Matrizes")
             
             st.markdown('<div class="heatmap-grid">', unsafe_allow_html=True)
             
@@ -1590,10 +1625,10 @@ def main_dashboard():
             st.markdown('</div>', unsafe_allow_html=True)
             
             # SEÇÃO 2: ANÁLISE DETALHADA POR MATRIZ
-            st.subheader("🔍 Análise Detalhada por Matriz")
+            st.subheader("Análise Detalhada por Matriz")
             
             analise_tab1, analise_tab2, analise_tab3, analise_tab4 = st.tabs([
-                "💰 Receita", "💸 CAC", "💎 LTV", "⚖️ CAC/LTV"
+                "Receita", "CAC", "LTV", "CAC/LTV"
             ])
             
             with analise_tab1:
@@ -1702,16 +1737,16 @@ def main_dashboard():
                         st.metric("Percentual Problemático", f"{estatisticas_cac_ltv['percentual_problematico']:.1f}%")
                         st.metric("Eficiência na Diagonal", f"{estatisticas_cac_ltv['percentual_diagonal']:.1f}%")
                     
-                    st.subheader("📋 Análise de Performance")
+                    st.subheader("Análise de Performance")
                     if ratio_medio < 1.0:
-                        st.success("**✅ PERFORMANCE SAUDÁVEL** - A razão CAC/LTV média indica que o custo de aquisição é menor que o valor do cliente, sugerindo sustentabilidade do negócio.")
+                        st.success("PERFORMANCE SAUDÁVEL - A razão CAC/LTV média indica que o custo de aquisição é menor que o valor do cliente, sugerindo sustentabilidade do negócio.")
                     else:
-                        st.warning("**⚠️ ATENÇÃO NECESSÁRIA** - A razão CAC/LTV média indica que o custo de aquisição supera o valor do cliente, necessitando otimização das estratégias.")
+                        st.warning("ATENÇÃO NECESSÁRIA - A razão CAC/LTV média indica que o custo de aquisição supera o valor do cliente, necessitando otimização das estratégias.")
                     
                     if estatisticas_cac_ltv['percentual_saudavel'] > 50:
-                        st.success(f"✅ MAIORIA SAUDÁVEL - {estatisticas_cac_ltv['percentual_saudavel']:.1f}% das combinações têm CAC/LTV < 1.0")
+                        st.success(f"MAIORIA SAUDÁVEL - {estatisticas_cac_ltv['percentual_saudavel']:.1f}% das combinações têm CAC/LTV < 1.0")
                     else:
-                        st.error(f"❌ MAIORIA PROBLEMÁTICA - Apenas {estatisticas_cac_ltv['percentual_saudavel']:.1f}% das combinações têm CAC/LTV < 1.0")
+                        st.error(f"MAIORIA PROBLEMÁTICA - Apenas {estatisticas_cac_ltv['percentual_saudavel']:.1f}% das combinações têm CAC/LTV < 1.0")
                     
                     if matriz_formatada_cac_ltv is not None:
                         st.subheader("Tabela Detalhada - CAC/LTV")
@@ -1720,14 +1755,14 @@ def main_dashboard():
                     st.warning("Não há dados disponíveis para a matriz de CAC/LTV")
             
             # SEÇÃO 3: INSIGHTS E RECOMENDAÇÕES
-            st.subheader("💡 Insights e Recomendações")
+            st.subheader("Insights e Recomendações")
             
             col1, col2 = st.columns(2)
             
             with col1:
                 st.markdown(f"""
                 <div class="matriz-stats">
-                    <h4>🎯 Pontos Fortes</h4>
+                    <h4>Pontos Fortes</h4>
                     <ul>
                         <li>Alta concentração na diagonal indica eficiência no processo de conversão</li>
                         <li>Padrão consistente sugere processos bem estabelecidos</li>
@@ -1739,7 +1774,7 @@ def main_dashboard():
             with col2:
                 st.markdown(f"""
                 <div class="matriz-stats">
-                    <h4>🚀 Oportunidades</h4>
+                    <h4>Oportunidades</h4>
                     <ul>
                         <li>Analisar células fora da diagonal para entender conversões atípicas</li>
                         <li>Otimizar tempo de conversão baseado nos padrões identificados</li>
@@ -1755,7 +1790,7 @@ def main_dashboard():
         
         if not performance_lp.empty:
             # Tabela principal de performance
-            st.subheader("📈 Performance por LP")
+            st.subheader("Performance por LP")
             
             # Formatar a tabela para exibição
             performance_formatada = performance_lp.copy()
@@ -1781,7 +1816,7 @@ def main_dashboard():
             st.dataframe(performance_formatada, use_container_width=True)
             
             # Gráficos de Performance COM FONTES MAIORES
-            st.subheader("📊 Visualizações de Performance")
+            st.subheader("Visualizações de Performance")
             
             col1, col2 = st.columns(2)
             
@@ -1815,7 +1850,7 @@ def main_dashboard():
             
             # Performance Mensal por LP
             if not performance_mensal_lp.empty:
-                st.subheader("📅 Performance Mensal por LP")
+                st.subheader("Performance Mensal por LP")
                 
                 lps_disponiveis = performance_mensal_lp['LP'].unique()
                 lp_selecionada = st.selectbox("Selecione a LP para análise mensal:", lps_disponiveis)
@@ -1855,7 +1890,7 @@ def main_dashboard():
                         fig_roas_mensal = configurar_layout_clean(fig_roas_mensal, f"ROAS Mensal - {lp_selecionada}")
                         st.plotly_chart(fig_roas_mensal, use_container_width=True)
                     
-                    st.subheader(f"📋 Performance Mensal Detalhada - {lp_selecionada}")
+                    st.subheader(f"Performance Mensal Detalhada - {lp_selecionada}")
                     
                     dados_formatados = dados_lp_mensal.copy()
                     dados_formatados['Receita'] = dados_formatados['Receita'].apply(lambda x: f"R$ {x:,.2f}")
@@ -1866,30 +1901,30 @@ def main_dashboard():
                     st.dataframe(dados_formatados[['Mês', 'Receita', 'Leads', 'ROAS', 'CAC/LTV']], use_container_width=True)
             
             # Análise de Eficiência
-            st.subheader("💡 Análise de Eficiência por LP")
+            st.subheader("Análise de Eficiência por LP")
             
             col1, col2 = st.columns(2)
             
             with col1:
                 lps_saudaveis = performance_lp[performance_lp['CAC/LTV'] < 1.0]
                 if not lps_saudaveis.empty:
-                    st.success("**✅ LPs com Performance Saudável (CAC/LTV < 1.0):**")
+                    st.success("LPs com Performance Saudável (CAC/LTV < 1.0):")
                     for _, lp in lps_saudaveis.iterrows():
-                        st.write(f"- **{lp['LP']}**: CAC/LTV = {lp['CAC/LTV']:.2f}")
+                        st.write(f"- {lp['LP']}: CAC/LTV = {lp['CAC/LTV']:.2f}")
                 else:
-                    st.warning("⚠️ Nenhuma LP com CAC/LTV abaixo de 1.0")
+                    st.warning("Nenhuma LP com CAC/LTV abaixo de 1.0")
             
             with col2:
                 lps_problematicas = performance_lp[performance_lp['CAC/LTV'] >= 1.0]
                 if not lps_problematicas.empty:
-                    st.error("**❌ LPs que Precisam de Atenção (CAC/LTV ≥ 1.0):**")
+                    st.error("LPs que Precisam de Atenção (CAC/LTV ≥ 1.0):")
                     for _, lp in lps_problematicas.iterrows():
-                        st.write(f"- **{lp['LP']}**: CAC/LTV = {lp['CAC/LTV']:.2f}")
+                        st.write(f"- {lp['LP']}: CAC/LTV = {lp['CAC/LTV']:.2f}")
                 else:
-                    st.success("✅ Todas as LPs têm CAC/LTV saudável")
+                    st.success("Todas as LPs têm CAC/LTV saudável")
             
             # Insights e Recomendações
-            st.subheader("🎯 Insights e Recomendações")
+            st.subheader("Insights e Recomendações")
             
             melhor_lp = performance_lp.loc[performance_lp['Receita'].idxmax()]
             pior_lp = performance_lp.loc[performance_lp['Receita'].idxmin()]
@@ -1899,7 +1934,7 @@ def main_dashboard():
             with col1:
                 st.markdown(f"""
                 <div class="matriz-stats">
-                    <h4>🏆 Melhor Performance: {melhor_lp['LP']}</h4>
+                    <h4>Melhor Performance: {melhor_lp['LP']}</h4>
                     <ul>
                         <li><strong>Receita:</strong> R$ {melhor_lp['Receita']:,.2f}</li>
                         <li><strong>ROAS:</strong> {melhor_lp['ROAS']:.1f}%</li>
@@ -1912,7 +1947,7 @@ def main_dashboard():
             with col2:
                 st.markdown(f"""
                 <div class="matriz-stats">
-                    <h4>📉 Oportunidade de Melhoria: {pior_lp['LP']}</h4>
+                    <h4>Oportunidade de Melhoria: {pior_lp['LP']}</h4>
                     <ul>
                         <li><strong>Receita:</strong> R$ {pior_lp['Receita']:,.2f}</li>
                         <li><strong>ROAS:</strong> {pior_lp['ROAS']:.1f}%</li>
