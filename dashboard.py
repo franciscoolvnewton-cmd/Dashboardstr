@@ -26,6 +26,153 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# CSS GLOBAL PARA FORÇAR CORES FIXAS E BLOQUEAR TEMA DO NAVEGADOR
+st.markdown("""
+<style>
+    /* FORÇAR TEMA CLARO EM TODOS OS ELEMENTOS */
+    :root {
+        --primary-color: #2563eb !important;
+        --background-color: #ffffff !important;
+        --secondary-background-color: #f0f2f6 !important;
+        --text-color: #262730 !important;
+        --font: "Source Sans Pro", sans-serif !important;
+    }
+    
+    /* SOBRESCREVER TODAS AS CORES DO STREAMLIT */
+    .stApp {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    
+    /* INPUTS - FORÇAR FUNDO BRANCO E TEXTO PRETO */
+    .stTextInput>div>div>input {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+    }
+    
+    .stTextInput>div>div>input:focus {
+        border-color: #2563eb !important;
+        box-shadow: none !important;
+    }
+    
+    .stTextInput label {
+        color: #000000 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* SENHA - FORÇAR FUNDO BRANCO E TEXTO PRETO */
+    .stTextInput>div>div>input[type="password"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+    }
+    
+    /* SELECT BOX - FORÇAR FUNDO BRANCO */
+    .stSelectbox>div>div {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+    }
+    
+    .stSelectbox label {
+        color: #000000 !important;
+    }
+    
+    /* BUTTON - CORES FIXAS */
+    .stButton>button {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: none !important;
+    }
+    
+    .stButton>button:hover {
+        background-color: #333333 !important;
+        color: #ffffff !important;
+    }
+    
+    /* SIDEBAR - FORÇAR FUNDO BRANCO */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+    }
+    
+    section[data-testid="stSidebar"] * {
+        color: #000000 !important;
+    }
+    
+    /* TABELAS - CORES FIXAS */
+    .dataframe {
+        background-color: #ffffff !important;
+    }
+    
+    .dataframe th {
+        background-color: #2563eb !important;
+        color: #ffffff !important;
+    }
+    
+    .dataframe td {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-color: #cccccc !important;
+    }
+    
+    /* METRICAS - CORES FIXAS */
+    .stMetric {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+    }
+    
+    .stMetric label {
+        color: #666666 !important;
+    }
+    
+    .stMetric div {
+        color: #000000 !important;
+    }
+    
+    /* ABAS - CORES FIXAS */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #f0f2f6 !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: transparent !important;
+        color: #666666 !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #2563eb !important;
+        color: #ffffff !important;
+    }
+    
+    /* REMOVER QUALQUER INFLUÊNCIA DE TEMA ESCURO */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --primary-color: #2563eb !important;
+            --background-color: #ffffff !important;
+            --secondary-background-color: #f0f2f6 !important;
+            --text-color: #000000 !important;
+        }
+        
+        .stApp {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+        }
+    }
+    
+    /* GARANTIR QUE TODOS OS TEXTOS SEJAM PRETOS */
+    h1, h2, h3, h4, h5, h6, p, div, span, li, td, th, label {
+        color: #000000 !important;
+    }
+    
+    /* GARANTIR QUE TODOS OS FUNDOS SEJAM BRANCOS */
+    div, section, main, .block-container, .main {
+        background-color: #ffffff !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Paleta de cores harmoniosa FIXA (não muda com tema do navegador)
 COLORS = {
     'primary': '#2563eb',
@@ -194,12 +341,15 @@ def load_data():
 
 # Tela de Login REMODELADA - Design limpo conforme exemplo
 def login_screen():
-    # ---------- CORES ----------
+    # ---------- CORES FIXAS ----------
     BACKGROUND_COLOR = "#ffffff"
     TEXT_COLOR = "#111111"
     GRAY_COLOR = "#666666"
     BUTTON_COLOR = "#000000"
     BUTTON_HOVER = "#333333"
+    INPUT_BACKGROUND = "#ffffff"
+    INPUT_TEXT_COLOR = "#000000"
+    INPUT_BORDER = "#cccccc"
 
     # ---------- CSS ----------
     st.markdown(f"""
@@ -211,7 +361,7 @@ def login_screen():
 
         /* Fundo e centralização flexível */
         .stApp {{
-            background-color: {BACKGROUND_COLOR};
+            background-color: {BACKGROUND_COLOR} !important;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -236,7 +386,7 @@ def login_screen():
             to {{ opacity: 1; transform: translateY(0); }}
         }}
 
-        /* Inputs */
+        /* INPUTS COM CORES FIXAS - GARANTIR FUNDO BRANCO E TEXTO PRETO */
         .stTextInput > div {{
             width: 100%;
             margin-bottom: 1rem;
@@ -245,23 +395,28 @@ def login_screen():
         .stTextInput>div>div>input {{
             width: 100%;
             border-radius: 6px;
-            border: 1px solid #ccc;
+            border: 1px solid {INPUT_BORDER} !important;
             padding: 8px 12px;
             font-size: 14px;
-            color: {TEXT_COLOR};
+            color: {INPUT_TEXT_COLOR} !important;
+            background-color: {INPUT_BACKGROUND} !important;
             box-sizing: border-box;
             transition: all 0.3s ease;
         }}
 
         .stTextInput>div>div>input:focus {{
-            border-color: #999;
-            box-shadow: none;
-            outline: none;
+            border-color: #999 !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }}
+
+        .stTextInput>div>div>input::placeholder {{
+            color: {GRAY_COLOR} !important;
         }}
 
         .stTextInput label {{
             font-weight: 500;
-            color: {TEXT_COLOR};
+            color: {TEXT_COLOR} !important;
             display: block;
             text-align: left;
             margin-bottom: 4px;
@@ -271,8 +426,8 @@ def login_screen():
         /* Botão */
         .stButton > button {{
             width: 100%;
-            background-color: {BUTTON_COLOR};
-            color: white;
+            background-color: {BUTTON_COLOR} !important;
+            color: white !important;
             border-radius: 6px;
             padding: 10px 0;
             border: none;
@@ -283,14 +438,37 @@ def login_screen():
         }}
 
         .stButton>button:hover {{
-            background-color: {BUTTON_HOVER};
+            background-color: {BUTTON_HOVER} !important;
+            color: white !important;
         }}
 
         /* Subtítulo */
         .login-wrapper p {{
-            color: {GRAY_COLOR};
+            color: {GRAY_COLOR} !important;
             margin-bottom: 1.5rem;
             font-size: 14px;
+        }}
+        
+        /* Garantir que todos os textos sejam pretos */
+        .login-wrapper h2 {{
+            color: {TEXT_COLOR} !important;
+        }}
+        
+        /* Forçar tema claro e bloquear tema do navegador */
+        @media (prefers-color-scheme: dark) {{
+            .stApp {{
+                background-color: {BACKGROUND_COLOR} !important;
+            }}
+            
+            .stTextInput>div>div>input {{
+                background-color: {INPUT_BACKGROUND} !important;
+                color: {INPUT_TEXT_COLOR} !important;
+                border-color: {INPUT_BORDER} !important;
+            }}
+            
+            .stTextInput label {{
+                color: {TEXT_COLOR} !important;
+            }}
         }}
     </style>
     """, unsafe_allow_html=True)
@@ -1088,7 +1266,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
 
 # Interface principal do dashboard
 def main_dashboard():
-    # Configuração CSS com design limpo e profissional COM CORES FIXAS
+    # CSS ESPECÍFICO PARA O DASHBOARD
     st.markdown(f"""
     <style>
     /* FUNDO BRANCO PARA TODA A APLICAÇÃO */
@@ -1115,12 +1293,13 @@ def main_dashboard():
     section[data-testid="stSidebar"] .stSelectbox>div>div {{
         background-color: {COLORS['white']} !important;
         border-color: {COLORS['light_gray']} !important;
+        color: {COLORS['black']} !important;
     }}
     
     section[data-testid="stSidebar"] .stTextInput>div>div>input {{
         background-color: {COLORS['white']} !important;
         border-color: {COLORS['light_gray']} !important;
-        color: {COLORS['dark_gray']} !important;
+        color: {COLORS['black']} !important;
     }}
     
     section[data-testid="stSidebar"] h1, 
@@ -1129,11 +1308,11 @@ def main_dashboard():
     section[data-testid="stSidebar"] p,
     section[data-testid="stSidebar"] div,
     section[data-testid="stSidebar"] span {{
-        color: {COLORS['dark_gray']} !important;
+        color: {COLORS['black']} !important;
     }}
     
     h1, h2, h3 {{
-        color: {COLORS['dark_gray']} !important;
+        color: {COLORS['black']} !important;
         font-weight: 600 !important;
         margin-bottom: 1rem !important;
         font-family: 'Arial', sans-serif;
@@ -1160,7 +1339,7 @@ def main_dashboard():
     }}
     
     .stMetric div {{
-        color: {COLORS['dark_gray']} !important;
+        color: {COLORS['black']} !important;
         font-weight: 700 !important;
         font-size: 1.4rem !important;
     }}
@@ -1255,7 +1434,7 @@ def main_dashboard():
     
     .metrica-valor {{
         font-size: 1.4rem;
-        color: {COLORS['dark_gray']};
+        color: {COLORS['black']};
         font-weight: 700;
         margin-bottom: 0.5rem;
     }}
@@ -1325,7 +1504,7 @@ def main_dashboard():
     .dataframe td {{
         padding: 10px;
         border-bottom: 1px solid {COLORS['light_gray']};
-        color: {COLORS['dark_gray']};
+        color: {COLORS['black']};
         background-color: {COLORS['white']};
     }}
     
@@ -1335,19 +1514,36 @@ def main_dashboard():
     
     /* Corrigir cores de texto em toda a aplicação */
     p, div, span, li {{
-        color: {COLORS['dark_gray']} !important;
+        color: {COLORS['black']} !important;
     }}
     
     /* Botão de logout BRANCO */
     .stButton>button[kind="secondary"] {{
         background-color: {COLORS['white']} !important;
-        color: {COLORS['dark_gray']} !important;
+        color: {COLORS['black']} !important;
         border: 1px solid {COLORS['light_gray']} !important;
     }}
     
     .stButton>button[kind="secondary"]:hover {{
         background-color: {COLORS['light_gray']} !important;
         border-color: {COLORS['gray']} !important;
+    }}
+    
+    /* GARANTIR QUE TODOS OS ELEMENTOS DE INPUT TENHAM CORES FIXAS */
+    .stTextInput>div>div>input, 
+    .stSelectbox>div>div,
+    .stNumberInput>div>div>input,
+    .stDateInput>div>div>input {{
+        background-color: {COLORS['white']} !important;
+        color: {COLORS['black']} !important;
+        border-color: {COLORS['light_gray']} !important;
+    }}
+    
+    .stTextInput label,
+    .stSelectbox label,
+    .stNumberInput label,
+    .stDateInput label {{
+        color: {COLORS['black']} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
