@@ -192,255 +192,141 @@ def load_data():
     
     return None
 
-# Tela de Login TOTALMENTE REFORMULADA - Design Ultra Moderno e Minimalista
+# Tela de Login REMODELADA - Design limpo conforme exemplo
 def login_screen():
+    # ---------- CORES ----------
+    BACKGROUND_COLOR = "#ffffff"
+    TEXT_COLOR = "#111111"
+    GRAY_COLOR = "#666666"
+    BUTTON_COLOR = "#000000"
+    BUTTON_HOVER = "#333333"
+
+    # ---------- CSS ----------
     st.markdown(f"""
     <style>
-    /* Reset completo e configurações gerais */
-    .main {{
-        background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['primary_light']} 100%) !important;
-    }}
-    
-    .stApp {{
-        background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['primary_light']} 100%) !important;
-    }}
-    
-    /* Remove TODOS os elementos do Streamlit */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    .stDeployButton {{display:none;}}
-    header {{visibility: hidden;}}
-    .stAlert {{display: none;}}
-    
-    /* Remove qualquer padding e margin */
-    .block-container {{
-        padding: 0 !important;
-        margin: 0 !important;
-        max-width: 100% !important;
-    }}
-    
-    /* Container principal centralizado com fundo gradiente */
-    .login-main-container {{
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['primary_light']} 100%);
-        padding: 20px;
-        margin: 0;
-    }}
-    
-    /* Card de login moderno e elegante */
-    .login-container {{
-        background: {COLORS['white']};
-        border-radius: 24px;
-        padding: 3rem 2.5rem;
-        max-width: 440px;
-        width: 100%;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-        text-align: center;
-        position: relative;
-        overflow: hidden;
-    }}
-    
-    /* Efeito sutil de brilho no card */
-    .login-container::before {{
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-        transform: rotate(45deg);
-        animation: shimmer 3s infinite;
-    }}
-    
-    @keyframes shimmer {{
-        0% {{ transform: rotate(45deg) translateX(-100%); }}
-        100% {{ transform: rotate(45deg) translateX(100%); }}
-    }}
-    
-    /* Container da imagem */
-    .login-image-container {{
-        margin-bottom: 2rem;
-        text-align: center;
-        position: relative;
-        z-index: 2;
-    }}
-    
-    .login-image {{
-        border-radius: 20px;
-        box-shadow: 0 15px 35px rgba(37, 99, 235, 0.2);
-        max-width: 280px;
-        margin: 0 auto;
-        border: 3px solid {COLORS['white']};
-        transition: transform 0.3s ease;
-    }}
-    
-    .login-image:hover {{
-        transform: scale(1.02);
-    }}
-    
-    /* Estilos para os campos de entrada */
-    .stTextInput>div>div>input {{
-        border-radius: 12px;
-        border: 2px solid {COLORS['light_gray']};
-        padding: 14px 16px;
-        font-size: 15px;
-        transition: all 0.3s ease;
-        background-color: {COLORS['white']};
-        color: {COLORS['dark_gray']};
-        font-weight: 500;
-    }}
-    
-    .stTextInput>div>div>input:focus {{
-        border-color: {COLORS['primary']};
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        background-color: {COLORS['white']};
-    }}
-    
-    .stTextInput>div>div>input::placeholder {{
-        color: {COLORS['gray']};
-        font-weight: 400;
-    }}
-    
-    /* Botão de login moderno */
-    .stButton>button {{
-        width: 100%;
-        border-radius: 12px;
-        padding: 16px 20px;
-        font-size: 16px;
-        font-weight: 600;
-        background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
-        border: none;
-        transition: all 0.3s ease;
-        color: {COLORS['white']};
-        margin-top: 1rem;
-        position: relative;
-        overflow: hidden;
-    }}
-    
-    .stButton>button::before {{
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-        transition: left 0.5s;
-    }}
-    
-    .stButton>button:hover::before {{
-        left: 100%;
-    }}
-    
-    .stButton>button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(37, 99, 235, 0.35);
-    }}
-    
-    /* Remove qualquer elemento extra do Streamlit */
-    .element-container {{
-        margin-bottom: 0 !important;
-    }}
-    
-    .stForm {{
-        border: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }}
-    
-    /* Labels dos campos */
-    .stTextInput label {{
-        color: {COLORS['dark_gray']} !important;
-        font-weight: 600 !important;
-        font-size: 14px !important;
-        margin-bottom: 8px !important;
-    }}
-    
-    /* Container do formulário */
-    .login-form-container {{
-        margin-top: 2rem;
-        position: relative;
-        z-index: 2;
-    }}
-    
-    /* Título sutil */
-    .login-subtitle {{
-        color: {COLORS['gray']} !important;
-        font-size: 0.9rem;
-        margin-top: 1rem;
-        font-weight: 500;
-    }}
-    
-    /* Ajustes para mobile */
-    @media (max-width: 768px) {{
-        .login-container {{
-            margin: 20px;
-            padding: 2rem 1.5rem;
+        /* Remove menus e cabeçalho do Streamlit */
+        #MainMenu, footer, header {{
+            visibility: hidden;
         }}
-        
-        .login-image {{
-            max-width: 220px;
+
+        /* Fundo e centralização flexível */
+        .stApp {{
+            background-color: {BACKGROUND_COLOR};
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
         }}
-    }}
+
+        /* Wrapper de login centralizado */
+        .login-wrapper {{
+            text-align: center;
+            width: 100%;
+            max-width: 320px;
+            padding: 1rem;
+            box-sizing: border-box;
+            animation: fadeIn 0.8s ease-in-out;
+        }}
+
+        @keyframes fadeIn {{
+            from {{ opacity: 0; transform: translateY(-20px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+
+        /* Inputs */
+        .stTextInput > div {{
+            width: 100%;
+            margin-bottom: 1rem;
+        }}
+
+        .stTextInput>div>div>input {{
+            width: 100%;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            padding: 8px 12px;
+            font-size: 14px;
+            color: {TEXT_COLOR};
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }}
+
+        .stTextInput>div>div>input:focus {{
+            border-color: #999;
+            box-shadow: none;
+            outline: none;
+        }}
+
+        .stTextInput label {{
+            font-weight: 500;
+            color: {TEXT_COLOR};
+            display: block;
+            text-align: left;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }}
+
+        /* Botão */
+        .stButton > button {{
+            width: 100%;
+            background-color: {BUTTON_COLOR};
+            color: white;
+            border-radius: 6px;
+            padding: 10px 0;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: 0.3s;
+        }}
+
+        .stButton>button:hover {{
+            background-color: {BUTTON_HOVER};
+        }}
+
+        /* Subtítulo */
+        .login-wrapper p {{
+            color: {GRAY_COLOR};
+            margin-bottom: 1.5rem;
+            font-size: 14px;
+        }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Container principal do login - LAYOUT ULTRA MODERNO
-    st.markdown('<div class="login-main-container">', unsafe_allow_html=True)
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    
-    # Logo do login como elemento central
+    # ---------- LAYOUT ----------
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+
+    # Logo
     login_logo = load_login_logo()
-    st.markdown('<div class="login-image-container">', unsafe_allow_html=True)
     if login_logo:
-        st.image(login_logo, width=280, use_container_width=False, output_format='auto')
+        st.image(login_logo, width=200)
     else:
-        # Fallback elegante se a imagem não for encontrada
-        st.markdown(f'''
-        <div style="
-            background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
-            border-radius: 20px;
-            padding: 3rem 2rem;
-            margin: 0 auto;
-            max-width: 280px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-        ">
-            <div style="font-size: 3rem; color: white; margin-bottom: 1rem;">📊</div>
-            <div style="color: white; font-size: 1.2rem; font-weight: 600;">Veros Intelligence</div>
-        </div>
-        ''', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Formulário de login ultra minimalista
-    st.markdown('<div class="login-form-container">', unsafe_allow_html=True)
-    
-    with st.form("login_form", clear_on_submit=False):
-        # Campos sem ícones para mais minimalismo
-        usuario = st.text_input("Usuário", placeholder="Digite seu usuário", key="usuario")
-        senha = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="senha")
-        
-        submit = st.form_submit_button("Acessar Dashboard", use_container_width=True)
-        
+        st.markdown(f'<div style="font-size: 3rem; color: #111111; margin-bottom: 1rem;">📊</div>', unsafe_allow_html=True)
+
+    # Título e subtítulo
+    st.markdown(f"""
+    <h2 style='color:#111111; margin: 0.5rem 0 0.2rem 0;'>Veros Intelligence</h2>
+    <p>Acesse seu dashboard</p>
+    """, unsafe_allow_html=True)
+
+    # ---------- FORMULÁRIO ----------
+    with st.form("login_form"):
+        usuario = st.text_input("Usuário", placeholder="Digite seu usuário")
+        senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+        submit = st.form_submit_button("Entrar")
+
         if submit:
             if usuario in CREDENCIAIS and CREDENCIAIS[usuario] == senha:
                 st.session_state.logged_in = True
                 st.session_state.usuario = usuario
-                st.success("✓ Login realizado com sucesso!")
+                st.success("Login realizado com sucesso!")
                 st.rerun()
             else:
-                st.error("✗ Usuário ou senha incorretos")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Texto minimalista no rodapé
-    st.markdown(f'<p class="login-subtitle">Dashboard de Performance & Analytics</p>', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+                st.error("Credenciais inválidas.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # Função para criar matriz escadinha de Receita
 def criar_matriz_escadinha(df, ano_filtro=2025):
