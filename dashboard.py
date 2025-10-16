@@ -1476,8 +1476,7 @@ def main_dashboard():
     
     with col2:
         st.title("Veros Intelligence Dashboard")
-        st.markdown(f"Tema atual: {'🌙 Escuro' if TEMA_ATUAL == 'dark' else '☀️ Claro'}")
-    
+        
     with col3:
         if st.button("Sair"):
             st.session_state.logged_in = False
