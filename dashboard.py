@@ -1,7 +1,3 @@
-na aba Lp leads tem que vir da base receita e seguir o mesmo criterio do calculo de receita bruta 
-
-coloque rotulo de dados nos graficos 
-coloque mais analises preditivas deixe o codigo mais robusto mais insights 
 
 import streamlit as st
 import pandas as pd
