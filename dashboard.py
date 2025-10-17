@@ -1893,52 +1893,33 @@ def main_dashboard():
         st.markdown(f'<div class="section-header"><h2 class="section-title">Visão Geral do Performance</h2><p class="section-subtitle">Métricas consolidadas e tendências do período</p></div>', unsafe_allow_html=True)
         
         if not receita_mensal.empty:
-            # KPIs Avançados
-            st.subheader("KPIs Estratégicos")
+            # KPIs Avançados - APENAS MÉTRICAS PRINCIPAIS
+            st.subheader("Métricas Principais")
             
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                if kpis_avancados:
-                    st.metric(
-                        "Eficiência Marketing", 
-                        f"{kpis_avancados.get('eficiencia_marketing', 0):.2f}",
-                        delta=f"{kpis_avancados.get('crescimento_receita', 0):.1f}% Crescimento"
-                    )
-            
-            with col2:
-                if kpis_avancados:
-                    st.metric(
-                        "LTV/CAC Ratio", 
-                        f"{kpis_avancados.get('ltv_cac_ratio', 0):.2f}",
-                        delta="Saudável" if kpis_avancados.get('ltv_cac_ratio', 0) > 1 else "Atenção"
-                    )
-            
-            with col3:
                 receita_total_bruta = receita_mensal['Receita Bruta'].sum()
                 st.metric(
                     "Receita Bruta Total", 
                     f"R$ {receita_total_bruta:,.0f}"
                 )
             
-            with col4:
+            with col2:
                 receita_total_liquida = receita_mensal['Receita Líquida'].sum()
                 st.metric(
                     "Receita Líquida Total", 
                     f"R$ {receita_total_liquida:,.0f}"
                 )
             
-            # Mais KPIs
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
+            with col3:
                 total_tutores = novos_tutores_mes['Novos Tutores'].sum()
                 st.metric(
                     "Total Novos Tutores", 
                     f"{total_tutores:,}"
                 )
             
-            with col2:
+            with col4:
                 if not cohort_data.empty:
                     cac_medio = cohort_data[cohort_data['CAC'] > 0]['CAC'].mean()
                     st.metric(
@@ -1946,7 +1927,10 @@ def main_dashboard():
                         f"R$ {cac_medio:,.0f}"
                     )
             
-            with col3:
+            # Mais KPIs
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
                 if not cohort_data.empty:
                     ltv_medio = cohort_data[cohort_data['LTV'] > 0]['LTV'].mean()
                     st.metric(
@@ -1954,12 +1938,26 @@ def main_dashboard():
                         f"R$ {ltv_medio:,.0f}"
                     )
             
-            with col4:
+            with col2:
                 if not cohort_data.empty:
                     roi_medio = cohort_data[cohort_data['ROI (%)'] != 0]['ROI (%)'].mean()
                     st.metric(
                         "ROI Médio", 
                         f"{roi_medio:.1f}%"
+                    )
+            
+            with col3:
+                if kpis_avancados and kpis_avancados.get('crescimento_receita', 0) != 0:
+                    st.metric(
+                        "Crescimento Receita", 
+                        f"{kpis_avancados.get('crescimento_receita', 0):.1f}%"
+                    )
+            
+            with col4:
+                if kpis_avancados:
+                    st.metric(
+                        "Volatilidade", 
+                        f"{kpis_avancados.get('volatilidade_receita', 0):.1f}%"
                     )
             
             # Gráficos Principais COM RÓTULOS
