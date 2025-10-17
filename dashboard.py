@@ -1,3 +1,8 @@
+na aba Lp leads tem que vir da base receita e seguir o mesmo criterio do calculo de receita bruta 
+
+coloque rotulo de dados nos graficos 
+coloque mais analises preditivas deixe o codigo mais robusto mais insights 
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -285,8 +290,473 @@ def load_data():
     
     return None
 
+@st.cache_data
+def load_leads_data():
+    """Carrega os dados de leads do RD"""
+    caminhos_dados = [
+        "DADOS_RDLEADS.xlsx",
+        "data/DADOS_RDLEADS.xlsx", 
+        "assets/DADOS_RDLEADS.xlsx",
+        "dados/DADOS_RDLEADS.xlsx"
+    ]
+    
+    for file_path in caminhos_dados:
+        try:
+            if os.path.exists(file_path):
+                df = pd.read_excel(file_path, engine='openpyxl')
+                
+                if 'email' not in df.columns or 'mes_ano_formatado_pt' not in df.columns:
+                    st.warning("Colunas 'email' ou 'mes_ano_formatado_pt' não encontradas nos dados de leads")
+                    return None
+                
+                return df
+        except Exception as e:
+            continue
+    
+    st.info("Arquivo DADOS_RDLEADS.xlsx não encontrado. A aba de análise de leads não estará disponível.")
+    return None
+
 # =============================================
-# TELA DE LOGIN ADAPTADA PARA TEMA DINÂMICO
+# FUNÇÕES DE ANÁLISE PREDITIVA AVANÇADA
+# =============================================
+
+def criar_modelo_preditivo_receita(df, meses_futuros=6):
+    """Cria modelo preditivo para receita usando múltiplos algoritmos"""
+    if df is None or df.empty:
+        return None, None, None, None
+    
+    try:
+        # Preparar dados históricos
+        receita_mensal_2024, _ = calcular_receita_mensal(df, 2024)
+        receita_mensal_2025, _ = calcular_receita_mensal(df, 2025)
+        
+        # Combinar dados de ambos os anos
+        receita_mensal = pd.concat([receita_mensal_2024, receita_mensal_2025], ignore_index=True)
+        
+        if receita_mensal.empty or len(receita_mensal) < 3:
+            return None, None, None, None
+        
+        # Criar features temporais
+        receita_mensal = receita_mensal.reset_index(drop=True)
+        receita_mensal['mes_num'] = range(1, len(receita_mensal) + 1)
+        receita_mensal['trimestre'] = (receita_mensal['mes_num'] - 1) // 3 + 1
+        receita_mensal['semestre'] = (receita_mensal['mes_num'] - 1) // 6 + 1
+        
+        # Separar variáveis
+        X = receita_mensal[['mes_num', 'trimestre', 'semestre']]
+        y = receita_mensal['Receita Bruta']
+        
+        # Treinar múltiplos modelos
+        modelos = {
+            'Regressão Linear': LinearRegression(),
+            'Random Forest': RandomForestRegressor(n_estimators=100, random_state=42)
+        }
+        
+        resultados = {}
+        previsoes_combinadas = []
+        
+        for nome, modelo in modelos.items():
+            modelo.fit(X, y)
+            previsoes_treino = modelo.predict(X)
+            
+            # Prever próximos meses
+            ultimo_mes = receita_mensal['mes_num'].max()
+            meses_futuros_range = range(ultimo_mes + 1, ultimo_mes + meses_futuros + 1)
+            
+            X_futuro = pd.DataFrame({
+                'mes_num': meses_futuros_range,
+                'trimestre': [(mes - 1) // 3 + 1 for mes in meses_futuros_range],
+                'semestre': [(mes - 1) // 6 + 1 for mes in meses_futuros_range]
+            })
+            
+            previsoes = modelo.predict(X_futuro)
+            previsoes_combinadas.append(previsoes)
+            
+            # Calcular métricas
+            r2 = r2_score(y, previsoes_treino)
+            mae = mean_absolute_error(y, previsoes_treino)
+            
+            resultados[nome] = {
+                'modelo': modelo,
+                'previsoes': previsoes,
+                'r2': r2,
+                'mae': mae
+            }
+        
+        # Previsão combinada (média dos modelos)
+        previsao_final = np.mean(previsoes_combinadas, axis=0)
+        
+        # Criar DataFrame com previsões
+        meses_nomes = [f"Predição {i}" for i in range(1, len(previsao_final) + 1)]
+        df_previsoes = pd.DataFrame({
+            'Mês': meses_nomes,
+            'Receita Bruta Prevista': previsao_final,
+            'Receita Líquida Prevista': previsao_final * 0.56
+        })
+        
+        # Calcular intervalo de confiança
+        desvio_padrao = np.std(previsoes_combinadas, axis=0)
+        df_previsoes['IC Inferior'] = df_previsoes['Receita Bruta Prevista'] - 1.96 * desvio_padrao
+        df_previsoes['IC Superior'] = df_previsoes['Receita Bruta Prevista'] + 1.96 * desvio_padrao
+        
+        return df_previsoes, resultados, receita_mensal, desvio_padrao.mean()
+        
+    except Exception as e:
+        st.error(f"Erro no modelo preditivo: {e}")
+        return None, None, None, None
+
+def analisar_tendencia_avancada(df):
+    """Análise avançada de tendências e sazonalidade"""
+    if df is None or df.empty:
+        return None
+    
+    try:
+        # Preparar dados
+        receita_mensal_2024, _ = calcular_receita_mensal(df, 2024)
+        receita_mensal_2025, _ = calcular_receita_mensal(df, 2025)
+        
+        receita_mensal = pd.concat([receita_mensal_2024, receita_mensal_2025], ignore_index=True)
+        
+        if receita_mensal.empty:
+            return None
+        
+        # Análise de crescimento
+        receita_mensal['Crescimento'] = receita_mensal['Receita Bruta'].pct_change() * 100
+        receita_mensal['Media_Movel_3M'] = receita_mensal['Receita Bruta'].rolling(window=3).mean()
+        receita_mensal['Media_Movel_6M'] = receita_mensal['Receita Bruta'].rolling(window=6).mean()
+        
+        # Identificar padrões sazonais
+        if len(receita_mensal) >= 12:
+            receita_mensal['Mes_Ano'] = range(1, len(receita_mensal) + 1)
+            correlacao_sazonal = receita_mensal['Receita Bruta'].corr(receita_mensal['Mes_Ano'])
+        else:
+            correlacao_sazonal = 0
+        
+        # Calcular métricas de performance
+        crescimento_total = ((receita_mensal['Receita Bruta'].iloc[-1] - receita_mensal['Receita Bruta'].iloc[0]) / 
+                           receita_mensal['Receita Bruta'].iloc[0] * 100) if receita_mensal['Receita Bruta'].iloc[0] > 0 else 0
+        
+        volatilidade = receita_mensal['Receita Bruta'].std() / receita_mensal['Receita Bruta'].mean() * 100
+        
+        return {
+            'dados': receita_mensal,
+            'crescimento_total': crescimento_total,
+            'volatilidade': volatilidade,
+            'correlacao_sazonal': correlacao_sazonal,
+            'media_3m': receita_mensal['Media_Movel_3M'].iloc[-1] if not receita_mensal['Media_Movel_3M'].isna().all() else 0,
+            'media_6m': receita_mensal['Media_Movel_6M'].iloc[-1] if not receita_mensal['Media_Movel_6M'].isna().all() else 0
+        }
+        
+    except Exception as e:
+        st.error(f"Erro na análise de tendência: {e}")
+        return None
+
+def calcular_kpis_avancados(df, ano_filtro=2025):
+    """Calcula KPIs avançados com insights estratégicos"""
+    if df is None or df.empty:
+        return {}
+    
+    try:
+        # Dados básicos
+        receita_mensal, _ = calcular_receita_mensal(df, ano_filtro)
+        novos_tutores_mes, _ = calcular_novos_tutores_mes(df, ano_filtro)
+        cohort_data = calcular_metricas_cohort(novos_tutores_mes, receita_mensal, ano_filtro)
+        
+        if receita_mensal.empty:
+            return {}
+        
+        # KPIs Básicos
+        receita_total = receita_mensal['Receita Bruta'].sum()
+        receita_liquida_total = receita_mensal['Receita Líquida'].sum()
+        total_tutores = novos_tutores_mes['Novos Tutores'].sum()
+        
+        # KPIs Avançados
+        cac_medio = cohort_data[cohort_data['CAC'] > 0]['CAC'].mean() if not cohort_data.empty else 0
+        ltv_medio = cohort_data[cohort_data['LTV'] > 0]['LTV'].mean() if not cohort_data.empty else 0
+        roi_medio = cohort_data[cohort_data['ROI (%)'] != 0]['ROI (%)'].mean() if not cohort_data.empty else 0
+        
+        # Análise de eficiência
+        investimento_total = sum(INVESTIMENTO_MENSAL_2025.values()) if ano_filtro == 2025 else sum(INVESTIMENTO_MENSAL_2024.values())
+        eficiencia_marketing = (receita_liquida_total / investimento_total) if investimento_total > 0 else 0
+        
+        # Análise de crescimento
+        if len(receita_mensal) > 1:
+            crescimento_receita = ((receita_mensal['Receita Bruta'].iloc[-1] - receita_mensal['Receita Bruta'].iloc[0]) / 
+                                 receita_mensal['Receita Bruta'].iloc[0] * 100)
+        else:
+            crescimento_receita = 0
+        
+        # Análise de consistência
+        volatilidade_receita = (receita_mensal['Receita Bruta'].std() / receita_mensal['Receita Bruta'].mean() * 100) if receita_mensal['Receita Bruta'].mean() > 0 else 0
+        
+        return {
+            'receita_total': receita_total,
+            'receita_liquida_total': receita_liquida_total,
+            'total_tutores': total_tutores,
+            'cac_medio': cac_medio,
+            'ltv_medio': ltv_medio,
+            'roi_medio': roi_medio,
+            'eficiencia_marketing': eficiencia_marketing,
+            'crescimento_receita': crescimento_receita,
+            'volatilidade_receita': volatilidade_receita,
+            'investimento_total': investimento_total,
+            'ltv_cac_ratio': ltv_medio / cac_medio if cac_medio > 0 else 0
+        }
+        
+    except Exception as e:
+        st.error(f"Erro no cálculo de KPIs avançados: {e}")
+        return {}
+
+# =============================================
+# FUNÇÕES DE ANÁLISE DE LEADS ATUALIZADAS
+# =============================================
+
+def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
+    """Análise consolidada mensal de leads COM DADOS DA BASE DE RECEITA"""
+    try:
+        # AGORA USANDO APENAS A BASE DE RECEITA PARA CALCULAR LEADS
+        if df_receita is None or df_receita.empty:
+            return pd.DataFrame()
+        
+        # Filtrar dados da base de receita
+        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
+        
+        if ano_filtro == 2024:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        else:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        
+        if df_filtrado.empty:
+            return pd.DataFrame()
+        
+        # Definir ordem dos meses
+        if ano_filtro == 2024:
+            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
+                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
+        else:
+            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
+                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
+        
+        # Calcular LEADS ÚNICOS por mês (baseado na base de receita)
+        leads_por_mes = df_filtrado.groupby('Mês geração lead').agg({
+            'E-MAIL': 'nunique',  # Conta emails únicos como leads
+            'VL UNI': 'sum'       # Soma da receita
+        }).reset_index()
+        
+        leads_por_mes.columns = ['Mês', 'Leads', 'Realizado']
+        
+        # Ordenar por ordem dos meses
+        leads_por_mes['Mês_Ordenado'] = pd.Categorical(leads_por_mes['Mês'], categories=ordem_meses, ordered=True)
+        leads_por_mes = leads_por_mes.sort_values('Mês_Ordenado').drop('Mês_Ordenado', axis=1)
+        
+        # Adicionar meses faltantes
+        meses_df = pd.DataFrame({'Mês': ordem_meses})
+        leads_por_mes = meses_df.merge(leads_por_mes, on='Mês', how='left').fillna(0)
+        
+        # Adicionar investimento
+        investimento_mensal = INVESTIMENTO_MENSAL_2024 if ano_filtro == 2024 else INVESTIMENTO_MENSAL_2025
+        leads_por_mes['Investimento'] = leads_por_mes['Mês'].map(investimento_mensal).fillna(0)
+        
+        # Calcular métricas
+        leads_por_mes['CPL'] = leads_por_mes.apply(
+            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        )
+        
+        # Calcular métricas derivadas
+        leads_por_mes['Tx.Conv'] = leads_por_mes.apply(
+            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        # Calcular tutores únicos por mês (já temos nos 'Leads')
+        leads_por_mes['Tutores'] = leads_por_mes['Leads']
+        
+        leads_por_mes['CAC'] = leads_por_mes.apply(
+            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['Receita'] = leads_por_mes['Realizado'] * 0.56
+        leads_por_mes['ROAS'] = leads_por_mes.apply(
+            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['TM'] = leads_por_mes.apply(
+            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['LTV'] = leads_por_mes.apply(
+            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['CAC/LTV'] = leads_por_mes.apply(
+            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
+        )
+        
+        return leads_por_mes
+        
+    except Exception as e:
+        st.error(f"Erro na análise consolidada de leads: {e}")
+        return pd.DataFrame()
+
+def analisar_leads_por_lp(df_leads, df_receita, ano_filtro=2025):
+    """Análise de leads por LP (categoria) COM DADOS DA BASE DE RECEITA"""
+    try:
+        # AGORA USANDO APENAS A BASE DE RECEITA
+        if df_receita is None or df_receita.empty:
+            return pd.DataFrame()
+        
+        # Filtrar dados da base de receita
+        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
+        
+        if ano_filtro == 2024:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        else:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        
+        if df_filtrado.empty:
+            return pd.DataFrame()
+        
+        # Agrupar por LP
+        leads_por_lp = df_filtrado.groupby('LP').agg({
+            'E-MAIL': 'nunique',  # Leads únicos
+            'VL UNI': 'sum'       # Receita realizada
+        }).reset_index()
+        
+        leads_por_lp.columns = ['LP', 'Leads', 'Realizado']
+        
+        # Adicionar investimento
+        leads_por_lp['Investimento'] = leads_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
+        
+        # Calcular métricas
+        leads_por_lp['CPL'] = leads_por_lp.apply(
+            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['Tx.Conv'] = leads_por_lp.apply(
+            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['Tutores'] = leads_por_lp['Leads']
+        
+        leads_por_lp['CAC'] = leads_por_lp.apply(
+            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['Receita'] = leads_por_lp['Realizado'] * 0.56
+        leads_por_lp['ROAS'] = leads_por_lp.apply(
+            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['TM'] = leads_por_lp.apply(
+            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['LTV'] = leads_por_lp.apply(
+            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['CAC/LTV'] = leads_por_lp.apply(
+            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
+        )
+        
+        return leads_por_lp.sort_values('Receita', ascending=False)
+        
+    except Exception as e:
+        st.error(f"Erro na análise de leads por LP: {e}")
+        return pd.DataFrame()
+
+def analisar_leads_por_lp_mensal(df_leads, df_receita, ano_filtro=2025):
+    """Análise mensal de leads por LP COM DADOS DA BASE DE RECEITA"""
+    try:
+        # AGORA USANDO APENAS A BASE DE RECEITA
+        if df_receita is None or df_receita.empty:
+            return pd.DataFrame()
+        
+        # Filtrar dados da base de receita
+        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
+        
+        if ano_filtro == 2024:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        else:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        
+        if df_filtrado.empty:
+            return pd.DataFrame()
+        
+        # Definir ordem dos meses
+        if ano_filtro == 2024:
+            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
+                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
+        else:
+            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
+                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
+        
+        # Agrupar por LP e mês
+        leads_por_lp_mes = df_filtrado.groupby(['LP', 'Mês geração lead']).agg({
+            'E-MAIL': 'nunique',
+            'VL UNI': 'sum'
+        }).reset_index()
+        
+        leads_por_lp_mes.columns = ['LP', 'Mês', 'Leads', 'Realizado']
+        
+        # Adicionar investimento mensal proporcional
+        investimento_total_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
+        investimento_total_por_lp['Investimento_Total'] = investimento_total_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
+        
+        leads_por_lp_mes = leads_por_lp_mes.merge(investimento_total_por_lp[['LP', 'Investimento_Total']], on='LP', how='left')
+        
+        # Calcular investimento mensal proporcional aos leads
+        total_leads_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
+        total_leads_por_lp.columns = ['LP', 'Total_Leads']
+        
+        leads_por_lp_mes = leads_por_lp_mes.merge(total_leads_por_lp, on='LP', how='left')
+        leads_por_lp_mes['Investimento'] = leads_por_lp_mes.apply(
+            lambda x: (x['Leads'] / x['Total_Leads']) * x['Investimento_Total'] if x['Total_Leads'] > 0 else 0, axis=1
+        )
+        
+        # Calcular métricas
+        leads_por_lp_mes['CPL'] = leads_por_lp_mes.apply(
+            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['Tx.Conv'] = leads_por_lp_mes.apply(
+            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['Tutores'] = leads_por_lp_mes['Leads']
+        
+        leads_por_lp_mes['CAC'] = leads_por_lp_mes.apply(
+            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['Receita'] = leads_por_lp_mes['Realizado'] * 0.56
+        leads_por_lp_mes['ROAS'] = leads_por_lp_mes.apply(
+            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['TM'] = leads_por_lp_mes.apply(
+            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['LTV'] = leads_por_lp_mes.apply(
+            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['CAC/LTV'] = leads_por_lp_mes.apply(
+            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
+        )
+        
+        # Ordenar por mês
+        leads_por_lp_mes['Mês_Ordenado'] = pd.Categorical(leads_por_lp_mes['Mês'], categories=ordem_meses, ordered=True)
+        leads_por_lp_mes = leads_por_lp_mes.sort_values(['LP', 'Mês_Ordenado']).drop('Mês_Ordenado', axis=1)
+        
+        return leads_por_lp_mes
+        
+    except Exception as e:
+        st.error(f"Erro na análise mensal de leads por LP: {e}")
+        return pd.DataFrame()
+
+# =============================================
+# FUNÇÕES EXISTENTES (MANTIDAS)
 # =============================================
 
 def login_screen():
@@ -424,10 +894,6 @@ def login_screen():
                 st.error("Credenciais inválidas.")
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-# =============================================
-# FUNÇÕES DE ANÁLISE DE DADOS COMPLETAS
-# =============================================
 
 def criar_matriz_escadinha(df, ano_filtro=2025):
     if df is None or df.empty:
@@ -669,14 +1135,14 @@ def criar_matriz_cac_ltv_ratio(df, ano_filtro=2025):
 
 def criar_heatmap_matriz(matriz, titulo, colorscale='Blues', width=500, height=450):
     """
-    Cria um heatmap visual da matriz escadinha SEM RÓTULOS DE DADOS
+    Cria um heatmap visual da matriz escadinha COM RÓTULOS DE DADOS
     """
     if matriz is None or matriz.empty:
         return None
     
     matriz_plot = matriz.copy()
     
-    # Criar heatmap SEM RÓTULOS
+    # Criar heatmap COM RÓTULOS
     fig = go.Figure(data=go.Heatmap(
         z=matriz_plot.values,
         x=matriz_plot.columns,
@@ -685,6 +1151,9 @@ def criar_heatmap_matriz(matriz, titulo, colorscale='Blues', width=500, height=4
         hoverongaps=False,
         hovertemplate='<b>Mês Receita: %{y}</b><br><b>Mês Lead: %{x}</b><br>Valor: %{z:,.2f}<extra></extra>',
         showscale=True,
+        text=[[f'R$ {val:,.0f}' if val > 0 else '' for val in row] for row in matriz_plot.values],
+        texttemplate="%{text}",
+        textfont={"size": 10, "color": "white"},
         colorbar=dict(
             title=dict(
                 text="Valor",
@@ -905,158 +1374,10 @@ def calcular_metricas_cohort(novos_tutores_mes, receita_mensal, ano_filtro=2025)
     
     return cohort_data
 
-def analisar_performance_lp(df, ano_filtro=2025):
-    if df is None or df.empty:
-        return pd.DataFrame()
-    
-    df_filtrado = df.copy()
-    
-    try:
-        condicao1 = df_filtrado['Considerar?'] == 'Sim'
-        condicao2 = (df_filtrado['LP'].notna()) & (df_filtrado['LP'] != '00. Not Mapped') & (df_filtrado['LP'] != '')
-        
-        if ano_filtro == 2024:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2024|24', na=False)
-        else:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2025|25', na=False)
-        
-        mask = condicao1 & condicao2 & condicao3
-        df_filtrado = df_filtrado[mask].copy()
-        
-        if df_filtrado.empty:
-            return pd.DataFrame()
-        
-        lps_para_analise = list(INVESTIMENTO_POR_LP.keys())
-        resultados = []
-        
-        for lp in lps_para_analise:
-            df_lp = df_filtrado[df_filtrado['LP'] == lp].copy()
-            
-            if df_lp.empty:
-                resultados.append({
-                    'LP': lp,
-                    'Investimento': INVESTIMENTO_POR_LP.get(lp, 0),
-                    'Leads': 0,
-                    'CPL': 0,
-                    'Realizado': 0,
-                    'Tx.Conv': 0,
-                    'CAC': 0,
-                    'Receita': 0,
-                    'ROAS': 0,
-                    'TM': 0,
-                    'CAC/LTV': 0,
-                    'Receita Cohort': 0
-                })
-                continue
-            
-            investimento = INVESTIMENTO_POR_LP.get(lp, 0)
-            leads_unicos = df_lp['E-MAIL'].nunique()
-            cpl = investimento / leads_unicos if leads_unicos > 0 else 0
-            realizado = df_lp['VL UNI'].sum()
-            tx_conv = (realizado / investimento * 100) if investimento > 0 else 0
-            tutores_unicos_com_receita = df_lp.drop_duplicates(subset=['E-MAIL'])['E-MAIL'].nunique()
-            cac = investimento / tutores_unicos_com_receita if tutores_unicos_com_receita > 0 else 0
-            receita_liquida = realizado * 0.56
-            roas = (receita_liquida / investimento * 100) if investimento > 0 else 0
-            tm = realizado / tutores_unicos_com_receita if tutores_unicos_com_receita > 0 else 0
-            ltv = receita_liquida / tutores_unicos_com_receita if tutores_unicos_com_receita > 0 else 0
-            cac_ltv_ratio = cac / ltv if ltv > 0 else 0
-            receita_cohort = receita_liquida
-            
-            resultados.append({
-                'LP': lp,
-                'Investimento': investimento,
-                'Leads': leads_unicos,
-                'CPL': cpl,
-                'Realizado': realizado,
-                'Tx.Conv': tx_conv,
-                'CAC': cac,
-                'Receita': receita_liquida,
-                'ROAS': roas,
-                'TM': tm,
-                'CAC/LTV': cac_ltv_ratio,
-                'Receita Cohort': receita_cohort
-            })
-        
-        df_resultados = pd.DataFrame(resultados)
-        df_resultados = df_resultados.sort_values('Receita', ascending=False)
-        
-        return df_resultados
-    
-    except Exception as e:
-        st.error(f"Erro na análise de LPs: {e}")
-        return pd.DataFrame()
-
-def analisar_performance_mensal_lp(df, ano_filtro=2025):
-    if df is None or df.empty:
-        return pd.DataFrame()
-    
-    df_filtrado = df.copy()
-    
-    try:
-        condicao1 = df_filtrado['Considerar?'] == 'Sim'
-        condicao2 = (df_filtrado['LP'].notna()) & (df_filtrado['LP'] != '00. Not Mapped') & (df_filtrado['LP'] != '')
-        
-        if ano_filtro == 2024:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2024|24', na=False)
-            meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                    'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2025|25', na=False)
-            meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                    'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
-        mask = condicao1 & condicao2 & condicao3
-        df_filtrado = df_filtrado[mask].copy()
-        
-        if df_filtrado.empty:
-            return pd.DataFrame()
-        
-        lps_para_analise = list(INVESTIMENTO_POR_LP.keys())
-        resultados_mensais = []
-        
-        for lp in lps_para_analise:
-            for mes in meses:
-                df_lp_mes = df_filtrado[(df_filtrado['LP'] == lp) & (df_filtrado['Mês geração receita'] == mes)].copy()
-                
-                if df_lp_mes.empty:
-                    resultados_mensais.append({
-                        'LP': lp,
-                        'Mês': mes,
-                        'Receita': 0,
-                        'Leads': 0,
-                        'ROAS': 0,
-                        'CAC/LTV': 0
-                    })
-                    continue
-                
-                investimento_mensal_lp = INVESTIMENTO_POR_LP.get(lp, 0) / 12
-                leads_unicos_mes = df_lp_mes['E-MAIL'].nunique()
-                receita_mes = df_lp_mes['VL UNI'].sum()
-                receita_liquida_mes = receita_mes * 0.56
-                roas_mes = (receita_liquida_mes / investimento_mensal_lp * 100) if investimento_mensal_lp > 0 else 0
-                tutores_unicos_mes = df_lp_mes.drop_duplicates(subset=['E-MAIL'])['E-MAIL'].nunique()
-                cac_mes = investimento_mensal_lp / tutores_unicos_mes if tutores_unicos_mes > 0 else 0
-                ltv_mes = receita_liquida_mes / tutores_unicos_mes if tutores_unicos_mes > 0 else 0
-                cac_ltv_mes = cac_mes / ltv_mes if ltv_mes > 0 else 0
-                
-                resultados_mensais.append({
-                    'LP': lp,
-                    'Mês': mes,
-                    'Receita': receita_liquida_mes,
-                    'Leads': leads_unicos_mes,
-                    'ROAS': roas_mes,
-                    'CAC/LTV': cac_ltv_mes
-                })
-        
-        df_resultados_mensais = pd.DataFrame(resultados_mensais)
-        return df_resultados_mensais
-    
-    except Exception as e:
-        st.error(f"Erro na análise mensal de LPs: {e}")
-        return pd.DataFrame()
-
-def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=False):
+def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=False, show_labels=True):
+    """
+    Configura layout dos gráficos COM RÓTULOS DE DADOS
+    """
     if fonte_maior:
         # Configuração com fontes maiores para gráficos de LP
         fig.update_layout(
@@ -1172,10 +1493,21 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
             height=height
         )
     
+    # Adicionar rótulos de dados se solicitado
+    if show_labels:
+        try:
+            fig.update_traces(
+                texttemplate='%{y:,.0f}',
+                textposition='top center',
+                textfont=dict(size=12, color=COLORS['text_primary'])
+            )
+        except:
+            pass
+    
     return fig
 
 # =============================================
-# DASHBOARD PRINCIPAL ADAPTADO PARA TEMA DINÂMICO
+# DASHBOARD PRINCIPAL COMPLETO
 # =============================================
 
 def main_dashboard():
@@ -1184,7 +1516,7 @@ def main_dashboard():
     TEMA_ATUAL = detectar_tema_navegador()
     COLORS = obter_cores_por_tema(TEMA_ATUAL)
     
-    # Configuração CSS com design adaptativo
+    # Configuração CSS completa
     st.markdown(f"""
     <style>
     /* FUNDO DINÂMICO PARA TODA A APLICAÇÃO */
@@ -1487,6 +1819,7 @@ def main_dashboard():
     # Carregar dados
     with st.spinner("Carregando e analisando dados..."):
         df = load_data()
+        df_leads = load_leads_data()
     
     if df is None:
         st.warning("Para usar o dashboard, faça upload do arquivo de dados ou coloque o arquivo 'DADOS_RECEITA_VEROS.xlsx' na pasta do projeto.")
@@ -1501,6 +1834,8 @@ def main_dashboard():
     with st.sidebar:
         st.header("Filtros e Configurações")
         st.info(f"Dataset carregado: {len(df)} registros")
+        if df_leads is not None:
+            st.info(f"Leads carregados: {len(df_leads)} registros")
         
         # Filtro de Ano
         st.subheader("Filtro de Período")
@@ -1528,7 +1863,7 @@ def main_dashboard():
         matriz_ltv, matriz_formatada_ltv = criar_matriz_ltv(df, ano_filtro=ano_selecionado)
         matriz_cac_ltv, matriz_formatada_cac_ltv = criar_matriz_cac_ltv_ratio(df, ano_filtro=ano_selecionado)
         
-        # Criar heatmaps SEM RÓTULOS
+        # Criar heatmaps COM RÓTULOS
         heatmap_receita = criar_heatmap_matriz(matriz_receita, "Receita Bruta", 'Blues', 500, 450)
         heatmap_cac = criar_heatmap_matriz(matriz_cac, "CAC (Custo Aquisição)", 'Reds', 500, 450)
         heatmap_ltv = criar_heatmap_matriz(matriz_ltv, "LTV (Valor Cliente)", 'Greens', 500, 450)
@@ -1540,48 +1875,74 @@ def main_dashboard():
         estatisticas_ltv = calcular_estatisticas_matriz(matriz_ltv, "LTV") if matriz_ltv is not None else None
         estatisticas_cac_ltv = calcular_estatisticas_matriz(matriz_cac_ltv, "CAC/LTV") if matriz_cac_ltv is not None else None
         
-        # Análise de Performance por LP
-        performance_lp = analisar_performance_lp(df, ano_filtro=ano_selecionado)
-        performance_mensal_lp = analisar_performance_mensal_lp(df, ano_filtro=ano_selecionado)
+        # Processar dados de leads (AGORA USANDO BASE DE RECEITA)
+        leads_consolidado = analisar_leads_consolidado_mes(df_leads, df, ano_selecionado)
+        leads_por_lp = analisar_leads_por_lp(df_leads, df, ano_selecionado)
+        leads_por_lp_mensal = analisar_leads_por_lp_mensal(df_leads, df, ano_selecionado)
+        
+        # Análises preditivas e avançadas
+        df_previsoes, resultados_modelos, dados_historicos, desvio_padrao = criar_modelo_preditivo_receita(df)
+        analise_tendencia = analisar_tendencia_avancada(df)
+        kpis_avancados = calcular_kpis_avancados(df, ano_selecionado)
     
-    # SISTEMA DE ABAS
-    tab1, tab2, tab3 = st.tabs([
+    # SISTEMA DE ABAS COMPLETO
+    tab1, tab2, tab3, tab4 = st.tabs([
         "Visão Geral", 
         "Matrizes Escadinha",
-        "Análise de LPs"
+        "LP Leads",
+        "Análise Preditiva"
     ])
     
     with tab1:
         st.markdown(f'<div class="section-header"><h2 class="section-title">Visão Geral do Performance</h2><p class="section-subtitle">Métricas consolidadas e tendências do período</p></div>', unsafe_allow_html=True)
         
         if not receita_mensal.empty:
-            # Métricas Principais em Grid
-            st.subheader("Métricas Principais")
+            # KPIs Avançados
+            st.subheader("KPIs Estratégicos")
             
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
+                if kpis_avancados:
+                    st.metric(
+                        "Eficiência Marketing", 
+                        f"{kpis_avancados.get('eficiencia_marketing', 0):.2f}",
+                        delta=f"{kpis_avancados.get('crescimento_receita', 0):.1f}% Crescimento"
+                    )
+            
+            with col2:
+                if kpis_avancados:
+                    st.metric(
+                        "LTV/CAC Ratio", 
+                        f"{kpis_avancados.get('ltv_cac_ratio', 0):.2f}",
+                        delta="Saudável" if kpis_avancados.get('ltv_cac_ratio', 0) > 1 else "Atenção"
+                    )
+            
+            with col3:
                 receita_total_bruta = receita_mensal['Receita Bruta'].sum()
                 st.metric(
                     "Receita Bruta Total", 
                     f"R$ {receita_total_bruta:,.0f}"
                 )
             
-            with col2:
+            with col4:
                 receita_total_liquida = receita_mensal['Receita Líquida'].sum()
                 st.metric(
                     "Receita Líquida Total", 
                     f"R$ {receita_total_liquida:,.0f}"
                 )
             
-            with col3:
+            # Mais KPIs
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
                 total_tutores = novos_tutores_mes['Novos Tutores'].sum()
                 st.metric(
                     "Total Novos Tutores", 
                     f"{total_tutores:,}"
                 )
             
-            with col4:
+            with col2:
                 if not cohort_data.empty:
                     cac_medio = cohort_data[cohort_data['CAC'] > 0]['CAC'].mean()
                     st.metric(
@@ -1589,13 +1950,29 @@ def main_dashboard():
                         f"R$ {cac_medio:,.0f}"
                     )
             
-            # Gráficos Principais
+            with col3:
+                if not cohort_data.empty:
+                    ltv_medio = cohort_data[cohort_data['LTV'] > 0]['LTV'].mean()
+                    st.metric(
+                        "LTV Médio", 
+                        f"R$ {ltv_medio:,.0f}"
+                    )
+            
+            with col4:
+                if not cohort_data.empty:
+                    roi_medio = cohort_data[cohort_data['ROI (%)'] != 0]['ROI (%)'].mean()
+                    st.metric(
+                        "ROI Médio", 
+                        f"{roi_medio:.1f}%"
+                    )
+            
+            # Gráficos Principais COM RÓTULOS
             st.subheader("Evolução Mensal")
             
             col1, col2 = st.columns(2)
             
             with col1:
-                # Gráfico de Receita Mensal
+                # Gráfico de Receita Mensal COM RÓTULOS
                 fig_receita = px.line(
                     receita_mensal, 
                     x='Mês', 
@@ -1608,14 +1985,17 @@ def main_dashboard():
                 )
                 
                 fig_receita.update_traces(
-                    mode='lines+markers'
+                    mode='lines+markers+text',
+                    texttemplate='%{y:,.0f}',
+                    textposition='top center',
+                    textfont=dict(size=10, color=COLORS['text_primary'])
                 )
                 
-                fig_receita = configurar_layout_clean(fig_receita, "Receita Mensal")
+                fig_receita = configurar_layout_clean(fig_receita, "Receita Mensal", show_labels=True)
                 st.plotly_chart(fig_receita, use_container_width=True)
             
             with col2:
-                # Gráfico de Novos Tutores
+                # Gráfico de Novos Tutores COM RÓTULOS
                 fig_tutores = px.bar(
                     novos_tutores_mes,
                     x='Mês',
@@ -1624,8 +2004,30 @@ def main_dashboard():
                     color_discrete_sequence=[COLORS['info']]
                 )
                 
-                fig_tutores = configurar_layout_clean(fig_tutores, "Novos Tutores por Mês")
+                fig_tutores.update_traces(
+                    texttemplate='%{y}',
+                    textposition='outside',
+                    textfont=dict(size=10, color=COLORS['text_primary'])
+                )
+                
+                fig_tutores = configurar_layout_clean(fig_tutores, "Novos Tutores por Mês", show_labels=True)
                 st.plotly_chart(fig_tutores, use_container_width=True)
+            
+            # Análise de Cohort
+            if not cohort_data.empty:
+                st.subheader("Análise de Cohort - Métricas por Mês")
+                
+                # Formatar cohort_data para exibição
+                cohort_formatado = cohort_data.copy()
+                colunas_monetarias = ['Investimento', 'CAC', 'LTV']
+                for col in colunas_monetarias:
+                    if col in cohort_formatado.columns:
+                        cohort_formatado[col] = cohort_formatado[col].apply(lambda x: f"R$ {x:,.0f}" if x > 0 else "R$ 0")
+                
+                cohort_formatado['ROI (%)'] = cohort_formatado['ROI (%)'].apply(lambda x: f"{x:.1f}%")
+                cohort_formatado['CAC/LTV'] = cohort_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}")
+                
+                st.dataframe(cohort_formatado, use_container_width=True)
         else:
             st.warning("Não há dados disponíveis para o período selecionado")
     
@@ -1659,7 +2061,7 @@ def main_dashboard():
             st.warning(f"Não há dados disponíveis para criar as matrizes escadinha do ano {ano_selecionado}.")
             st.info("Tente selecionar outro ano ou verifique se os dados estão corretamente formatados.")
         else:
-            # SEÇÃO 1: VISUALIZAÇÕES DAS MATRIZES (SEM RÓTULOS)
+            # SEÇÃO 1: VISUALIZAÇÕES DAS MATRIZES (COM RÓTULOS)
             st.subheader("Visualizações das Matrizes")
             
             st.markdown('<div class="heatmap-grid">', unsafe_allow_html=True)
@@ -1850,162 +2252,304 @@ def main_dashboard():
                 """, unsafe_allow_html=True)
     
     with tab3:
-        st.markdown(f'<div class="section-header"><h2 class="section-title">Análise de Performance por Landing Page</h2><p class="section-subtitle">Métricas detalhadas por canal de aquisição</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Análise de Leads - Base Receita</h2><p class="section-subtitle">Métricas de performance baseadas nos dados de RECEITA (E-MAILS ÚNICOS)</p></div>', unsafe_allow_html=True)
         
-        total_investimento_lp = sum(INVESTIMENTO_POR_LP.values())
+        st.info("🔍 **Dados calculados a partir da base de RECEITA** - Utilizando E-MAILS únicos como indicador de leads convertidos")
         
-        if not performance_lp.empty:
-            # Tabela principal de performance
-            st.subheader("Performance por LP")
+        # CONSOLIDADO POR MES
+        st.subheader("CONSOLIDADO POR MÊS")
+        if not leads_consolidado.empty:
+            col1, col2, col3, col4 = st.columns(4)
+            with col1: 
+                st.metric("Total Leads (E-MAILS)", f"{leads_consolidado['Leads'].sum():,}")
+            with col2: 
+                st.metric("CPL Médio", f"R$ {leads_consolidado['CPL'].mean():.2f}")
+            with col3: 
+                st.metric("Receita Total", f"R$ {leads_consolidado['Receita'].sum():,.0f}")
+            with col4: 
+                st.metric("ROAS Médio", f"{leads_consolidado['ROAS'].mean():.1f}%")
             
-            # Formatar a tabela para exibição
-            performance_formatada = performance_lp.copy()
-            
-            colunas_monetarias = ['Investimento', 'CPL', 'CAC', 'TM', 'Receita', 'Receita Cohort']
+            # Formatar tabela
+            consolidado_formatado = leads_consolidado.copy()
+            colunas_monetarias = ['Investimento', 'CPL', 'Realizado', 'CAC', 'Receita', 'TM', 'LTV']
             for col in colunas_monetarias:
-                performance_formatada[col] = performance_formatada[col].apply(
-                    lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00"
-                )
+                if col in consolidado_formatado.columns:
+                    consolidado_formatado[col] = consolidado_formatado[col].apply(lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00")
             
-            colunas_percentuais = ['Tx.Conv', 'ROAS']
-            for col in colunas_percentuais:
-                performance_formatada[col] = performance_formatada[col].apply(
-                    lambda x: f"{x:.1f}%" if x > 0 else "0.0%"
-                )
+            if 'Tx.Conv' in consolidado_formatado.columns:
+                consolidado_formatado['Tx.Conv'] = consolidado_formatado['Tx.Conv'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+            if 'ROAS' in consolidado_formatado.columns:
+                consolidado_formatado['ROAS'] = consolidado_formatado['ROAS'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+            if 'CAC/LTV' in consolidado_formatado.columns:
+                consolidado_formatado['CAC/LTV'] = consolidado_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
             
-            performance_formatada['CAC/LTV'] = performance_formatada['CAC/LTV'].apply(
-                lambda x: f"{x:.2f}" if x > 0 else "0.00"
-            )
+            st.dataframe(consolidado_formatado, use_container_width=True)
             
-            performance_formatada['Leads'] = performance_formatada['Leads'].apply(lambda x: f"{x:,.0f}")
-            
-            st.dataframe(performance_formatada, use_container_width=True)
-            
-            # Gráficos de Performance COM FONTES MAIORES
-            st.subheader("Visualizações de Performance")
-            
+            # Gráficos consolidados COM RÓTULOS
             col1, col2 = st.columns(2)
-            
             with col1:
-                # Gráfico de Receita por LP COM FONTES MAIORES
-                fig_receita_lp = px.bar(
-                    performance_lp,
-                    x='LP',
-                    y='Receita',
-                    title="Receita por LP",
-                    color='Receita',
-                    color_continuous_scale='Viridis'
+                fig_consolidado_leads = px.bar(leads_consolidado, x='Mês', y='Leads', title="Leads por Mês (E-MAILS Únicos)")
+                fig_consolidado_leads.update_traces(
+                    texttemplate='%{y}',
+                    textposition='outside',
+                    textfont=dict(size=10, color=COLORS['text_primary'])
                 )
-                
-                fig_receita_lp = configurar_layout_clean(fig_receita_lp, "Receita por Landing Page", fonte_maior=True)
+                fig_consolidado_leads = configurar_layout_clean(fig_consolidado_leads, "Leads por Mês", show_labels=True)
+                st.plotly_chart(fig_consolidado_leads, use_container_width=True)
+            
+            with col2:
+                fig_consolidado_roas = px.line(leads_consolidado, x='Mês', y='ROAS', title="ROAS por Mês", markers=True)
+                fig_consolidado_roas.update_traces(
+                    mode='lines+markers+text',
+                    texttemplate='%{y:.1f}%',
+                    textposition='top center',
+                    textfont=dict(size=10, color=COLORS['text_primary'])
+                )
+                fig_consolidado_roas = configurar_layout_clean(fig_consolidado_roas, "ROAS por Mês", show_labels=True)
+                st.plotly_chart(fig_consolidado_roas, use_container_width=True)
+        else:
+            st.warning("Não há dados consolidados disponíveis para o período selecionado")
+        
+        st.markdown("---")
+        
+        # POR LP
+        st.subheader("POR LP")
+        if not leads_por_lp.empty:
+            col1, col2, col3, col4 = st.columns(4)
+            with col1: 
+                st.metric("Melhor LP", leads_por_lp.iloc[0]['LP'])
+            with col2: 
+                st.metric("Receita Top LP", f"R$ {leads_por_lp.iloc[0]['Receita']:,.0f}")
+            with col3: 
+                st.metric("ROAS Top LP", f"{leads_por_lp.iloc[0]['ROAS']:.1f}%")
+            with col4: 
+                st.metric("CAC/LTV Top LP", f"{leads_por_lp.iloc[0]['CAC/LTV']:.2f}")
+            
+            # Formatar tabela
+            por_lp_formatado = leads_por_lp.copy()
+            colunas_monetarias = ['Investimento', 'CPL', 'Realizado', 'CAC', 'Receita', 'TM', 'LTV']
+            for col in colunas_monetarias:
+                if col in por_lp_formatado.columns:
+                    por_lp_formatado[col] = por_lp_formatado[col].apply(lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00")
+            
+            if 'Tx.Conv' in por_lp_formatado.columns:
+                por_lp_formatado['Tx.Conv'] = por_lp_formatado['Tx.Conv'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+            if 'ROAS' in por_lp_formatado.columns:
+                por_lp_formatado['ROAS'] = por_lp_formatado['ROAS'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+            if 'CAC/LTV' in por_lp_formatado.columns:
+                por_lp_formatado['CAC/LTV'] = por_lp_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
+            
+            st.dataframe(por_lp_formatado, use_container_width=True)
+            
+            # Gráficos COM RÓTULOS
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_leads_lp = px.bar(leads_por_lp.head(10), x='LP', y='Leads', title="Top 10 LPs por Volume de Leads")
+                fig_leads_lp.update_traces(
+                    texttemplate='%{y}',
+                    textposition='outside',
+                    textfont=dict(size=10, color=COLORS['text_primary'])
+                )
+                fig_leads_lp = configurar_layout_clean(fig_leads_lp, "Top 10 LPs por Volume de Leads", show_labels=True)
+                st.plotly_chart(fig_leads_lp, use_container_width=True)
+            with col2:
+                fig_receita_lp = px.bar(leads_por_lp.head(10), x='LP', y='Receita', title="Top 10 LPs por Receita")
+                fig_receita_lp.update_traces(
+                    texttemplate='%{y:,.0f}',
+                    textposition='outside',
+                    textfont=dict(size=10, color=COLORS['text_primary'])
+                )
+                fig_receita_lp = configurar_layout_clean(fig_receita_lp, "Top 10 LPs por Receita", show_labels=True)
                 st.plotly_chart(fig_receita_lp, use_container_width=True)
+        else:
+            st.warning("Não há dados por LP disponíveis para o período selecionado")
+        
+        st.markdown("---")
+        
+        # POR LP MENSAL
+        st.subheader("POR LP MENSAL")
+        if not leads_por_lp_mensal.empty:
+            lps_disponiveis = leads_por_lp_mensal['LP'].unique()
+            lp_selecionada = st.selectbox("Selecione a LP para análise detalhada:", lps_disponiveis)
             
-            with col2:
-                # Gráfico de ROAS por LP COM FONTES MAIORES
-                fig_roas_lp = px.bar(
-                    performance_lp,
-                    x='LP',
-                    y='ROAS',
-                    title="ROAS por LP",
-                    color='ROAS',
-                    color_continuous_scale='RdYlGn'
-                )
+            if lp_selecionada:
+                dados_lp = leads_por_lp_mensal[leads_por_lp_mensal['LP'] == lp_selecionada]
                 
-                fig_roas_lp = configurar_layout_clean(fig_roas_lp, "ROAS por Landing Page", fonte_maior=True)
-                st.plotly_chart(fig_roas_lp, use_container_width=True)
-            
-            # Performance Mensal por LP
-            if not performance_mensal_lp.empty:
-                st.subheader("Performance Mensal por LP")
+                col1, col2, col3, col4 = st.columns(4)
+                with col1: 
+                    st.metric("Total Leads", f"{dados_lp['Leads'].sum():,}")
+                with col2: 
+                    st.metric("Receita Total", f"R$ {dados_lp['Receita'].sum():,.0f}")
+                with col3: 
+                    st.metric("ROAS Médio", f"{dados_lp['ROAS'].mean():.1f}%")
+                with col4: 
+                    st.metric("CAC/LTV Médio", f"{dados_lp['CAC/LTV'].mean():.2f}")
                 
-                lps_disponiveis = performance_mensal_lp['LP'].unique()
-                lp_selecionada = st.selectbox("Selecione a LP para análise mensal:", lps_disponiveis)
+                # Formatar tabela
+                mensal_formatado = dados_lp.copy()
+                colunas_monetarias = ['Investimento', 'CPL', 'Realizado', 'CAC', 'Receita', 'TM', 'LTV']
+                for col in colunas_monetarias:
+                    if col in mensal_formatado.columns:
+                        mensal_formatado[col] = mensal_formatado[col].apply(lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00")
                 
-                if lp_selecionada:
-                    dados_lp_mensal = performance_mensal_lp[performance_mensal_lp['LP'] == lp_selecionada]
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        fig_receita_mensal = px.line(
-                            dados_lp_mensal,
-                            x='Mês',
-                            y='Receita',
-                            title=f"Receita Mensal - {lp_selecionada}",
-                            markers=True
-                        )
-                        
-                        fig_receita_mensal.update_traces(
-                            line=dict(color=COLORS['primary'], width=3),
-                            marker=dict(size=8, color=COLORS['primary'])
-                        )
-                        
-                        fig_receita_mensal = configurar_layout_clean(fig_receita_mensal, f"Receita Mensal - {lp_selecionada}")
-                        st.plotly_chart(fig_receita_mensal, use_container_width=True)
-                    
-                    with col2:
-                        fig_roas_mensal = px.bar(
-                            dados_lp_mensal,
-                            x='Mês',
-                            y='ROAS',
-                            title=f"ROAS Mensal - {lp_selecionada}",
-                            color='ROAS',
-                            color_continuous_scale='RdYlGn'
-                        )
-                        
-                        fig_roas_mensal = configurar_layout_clean(fig_roas_mensal, f"ROAS Mensal - {lp_selecionada}")
-                        st.plotly_chart(fig_roas_mensal, use_container_width=True)
-                    
-                    st.subheader(f"Performance Mensal Detalhada - {lp_selecionada}")
-                    
-                    dados_formatados = dados_lp_mensal.copy()
-                    dados_formatados['Receita'] = dados_formatados['Receita'].apply(lambda x: f"R$ {x:,.2f}")
-                    dados_formatados['ROAS'] = dados_formatados['ROAS'].apply(lambda x: f"{x:.1f}%")
-                    dados_formatados['CAC/LTV'] = dados_formatados['CAC/LTV'].apply(lambda x: f"{x:.2f}")
-                    dados_formatados['Leads'] = dados_formatados['Leads'].apply(lambda x: f"{x:,.0f}")
-                    
-                    st.dataframe(dados_formatados[['Mês', 'Receita', 'Leads', 'ROAS', 'CAC/LTV']], use_container_width=True)
-            
-            # Análise de Eficiência
-            st.subheader("Análise de Eficiência por LP")
-            
-            col1, col2 = st.columns(2)
+                if 'Tx.Conv' in mensal_formatado.columns:
+                    mensal_formatado['Tx.Conv'] = mensal_formatado['Tx.Conv'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+                if 'ROAS' in mensal_formatado.columns:
+                    mensal_formatado['ROAS'] = mensal_formatado['ROAS'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+                if 'CAC/LTV' in mensal_formatado.columns:
+                    mensal_formatado['CAC/LTV'] = mensal_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
+                
+                st.dataframe(mensal_formatado, use_container_width=True)
+                
+                # Gráficos mensais COM RÓTULOS
+                col1, col2 = st.columns(2)
+                with col1:
+                    fig_evolucao_leads = px.line(dados_lp, x='Mês', y='Leads', title=f"Evolução de Leads - {lp_selecionada}", markers=True)
+                    fig_evolucao_leads.update_traces(
+                        mode='lines+markers+text',
+                        texttemplate='%{y}',
+                        textposition='top center',
+                        textfont=dict(size=10, color=COLORS['text_primary'])
+                    )
+                    fig_evolucao_leads = configurar_layout_clean(fig_evolucao_leads, f"Evolução de Leads - {lp_selecionada}", show_labels=True)
+                    st.plotly_chart(fig_evolucao_leads, use_container_width=True)
+                with col2:
+                    fig_evolucao_receita = px.line(dados_lp, x='Mês', y='Receita', title=f"Evolução de Receita - {lp_selecionada}", markers=True)
+                    fig_evolucao_receita.update_traces(
+                        mode='lines+markers+text',
+                        texttemplate='%{y:,.0f}',
+                        textposition='top center',
+                        textfont=dict(size=10, color=COLORS['text_primary'])
+                    )
+                    fig_evolucao_receita = configurar_layout_clean(fig_evolucao_receita, f"Evolução de Receita - {lp_selecionada}", show_labels=True)
+                    st.plotly_chart(fig_evolucao_receita, use_container_width=True)
+        else:
+            st.warning("Não há dados mensais por LP disponíveis para o período selecionado")
+    
+    with tab4:
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Análise Preditiva e Insights Avançados</h2><p class="section-subtitle">Previsões e análises estratégicas baseadas em machine learning</p></div>', unsafe_allow_html=True)
+        
+        # ANÁLISE PREDITIVA
+        st.subheader("🔮 Previsão de Receita")
+        
+        if df_previsoes is not None:
+            col1, col2 = st.columns([2, 1])
             
             with col1:
-                lps_saudaveis = performance_lp[performance_lp['CAC/LTV'] < 1.0]
-                if not lps_saudaveis.empty:
-                    st.success("LPs com Performance Saudável (CAC/LTV < 1.0):")
-                    for _, lp in lps_saudaveis.iterrows():
-                        st.write(f"- {lp['LP']}: CAC/LTV = {lp['CAC/LTV']:.2f}")
-                else:
-                    st.warning("Nenhuma LP com CAC/LTV abaixo de 1.0")
+                # Gráfico de previsão COM RÓTULOS
+                fig_previsao = go.Figure()
+                
+                # Adicionar histórico
+                if dados_historicos is not None:
+                    fig_previsao.add_trace(go.Scatter(
+                        x=dados_historicos['Mês'],
+                        y=dados_historicos['Receita Bruta'],
+                        mode='lines+markers',
+                        name='Histórico',
+                        line=dict(color=COLORS['primary'], width=3),
+                        marker=dict(size=8)
+                    ))
+                
+                # Adicionar previsões
+                fig_previsao.add_trace(go.Scatter(
+                    x=df_previsoes['Mês'],
+                    y=df_previsoes['Receita Bruta Prevista'],
+                    mode='lines+markers+text',
+                    name='Previsão',
+                    line=dict(color=COLORS['warning'], width=3, dash='dash'),
+                    marker=dict(size=8),
+                    text=[f'R$ {x:,.0f}' for x in df_previsoes['Receita Bruta Prevista']],
+                    textposition='top center'
+                ))
+                
+                # Adicionar intervalo de confiança
+                fig_previsao.add_trace(go.Scatter(
+                    x=df_previsoes['Mês'].tolist() + df_previsoes['Mês'].tolist()[::-1],
+                    y=df_previsoes['IC Superior'].tolist() + df_previsoes['IC Inferior'].tolist()[::-1],
+                    fill='toself',
+                    fillcolor='rgba(255, 152, 0, 0.2)',
+                    line=dict(color='rgba(255, 152, 0, 0)'),
+                    name='Intervalo Confiança 95%'
+                ))
+                
+                fig_previsao = configurar_layout_clean(fig_previsao, "Previsão de Receita - Próximos 6 Meses", show_labels=True)
+                st.plotly_chart(fig_previsao, use_container_width=True)
             
             with col2:
-                lps_problematicas = performance_lp[performance_lp['CAC/LTV'] >= 1.0]
-                if not lps_problematicas.empty:
-                    st.error("LPs que Precisam de Atenção (CAC/LTV ≥ 1.0):")
-                    for _, lp in lps_problematicas.iterrows():
-                        st.write(f"- {lp['LP']}: CAC/LTV = {lp['CAC/LTV']:.2f}")
-                else:
-                    st.success("Todas as LPs têm CAC/LTV saudável")
+                st.metric("Precisão Média dos Modelos", 
+                         f"{(sum([resultados_modelos[modelo]['r2'] for modelo in resultados_modelos]) / len(resultados_modelos)) * 100:.1f}%")
+                st.metric("Erro Médio de Previsão", f"R$ {desvio_padrao:,.0f}")
+                
+                st.markdown("""
+                **Modelos Utilizados:**
+                - Regressão Linear
+                - Random Forest
+                - Média Combinada
+                """)
+                
+                # Métricas dos modelos individuais
+                for nome, resultado in resultados_modelos.items():
+                    with st.expander(f"Métricas {nome}"):
+                        st.metric("R²", f"{resultado['r2']:.3f}")
+                        st.metric("MAE", f"R$ {resultado['mae']:,.0f}")
+        else:
+            st.warning("Não há dados suficientes para gerar previsões. São necessários pelo menos 3 meses de dados históricos.")
+        
+        # ANÁLISE DE TENDÊNCIA
+        st.subheader("📈 Análise de Tendência")
+        
+        if analise_tendencia:
+            col1, col2, col3, col4 = st.columns(4)
             
-            # Insights e Recomendações
-            st.subheader("Insights e Recomendações")
+            with col1:
+                st.metric("Crescimento Total", f"{analise_tendencia['crescimento_total']:.1f}%")
             
-            melhor_lp = performance_lp.loc[performance_lp['Receita'].idxmax()]
-            pior_lp = performance_lp.loc[performance_lp['Receita'].idxmin()]
+            with col2:
+                st.metric("Volatilidade", f"{analise_tendencia['volatilidade']:.1f}%")
             
+            with col3:
+                st.metric("Correlação Sazonal", f"{analise_tendencia['correlacao_sazonal']:.2f}")
+            
+            with col4:
+                st.metric("Média Móvel 3M", f"R$ {analise_tendencia['media_3m']:,.0f}")
+            
+            # Gráfico de tendência COM RÓTULOS
+            fig_tendencia = go.Figure()
+            
+            fig_tendencia.add_trace(go.Scatter(
+                x=analise_tendencia['dados']['Mês'],
+                y=analise_tendencia['dados']['Receita Bruta'],
+                mode='lines+markers',
+                name='Receita Bruta',
+                line=dict(color=COLORS['primary'], width=3)
+            ))
+            
+            if 'Media_Movel_3M' in analise_tendencia['dados'].columns:
+                fig_tendencia.add_trace(go.Scatter(
+                    x=analise_tendencia['dados']['Mês'],
+                    y=analise_tendencia['dados']['Media_Movel_3M'],
+                    mode='lines',
+                    name='Média Móvel 3M',
+                    line=dict(color=COLORS['warning'], width=2, dash='dash')
+                ))
+            
+            fig_tendencia = configurar_layout_clean(fig_tendencia, "Análise de Tendência e Sazonalidade", show_labels=True)
+            st.plotly_chart(fig_tendencia, use_container_width=True)
+        
+        # INSIGHTS ESTRATÉGICOS
+        st.subheader("💡 Insights Estratégicos")
+        
+        if kpis_avancados:
             col1, col2 = st.columns(2)
             
             with col1:
                 st.markdown(f"""
                 <div class="matriz-stats">
-                    <h4>Melhor Performance: {melhor_lp['LP']}</h4>
+                    <h4>Performance Financeira</h4>
                     <ul>
-                        <li><strong>Receita:</strong> R$ {melhor_lp['Receita']:,.2f}</li>
-                        <li><strong>ROAS:</strong> {melhor_lp['ROAS']:.1f}%</li>
-                        <li><strong>CAC/LTV:</strong> {melhor_lp['CAC/LTV']:.2f}</li>
-                        <li><strong>Leads:</strong> {melhor_lp['Leads']:,.0f}</li>
+                        <li><strong>Eficiência Marketing:</strong> R$ {kpis_avancados.get('receita_liquida_total', 0):,.0f} / R$ {kpis_avancados.get('investimento_total', 0):,.0f} = {kpis_avancados.get('eficiencia_marketing', 0):.2f}</li>
+                        <li><strong>ROI Médio:</strong> {kpis_avancados.get('roi_medio', 0):.1f}%</li>
+                        <li><strong>LTV/CAC Ratio:</strong> {kpis_avancados.get('ltv_cac_ratio', 0):.2f}</li>
                     </ul>
                 </div>
                 """, unsafe_allow_html=True)
@@ -2013,18 +2557,36 @@ def main_dashboard():
             with col2:
                 st.markdown(f"""
                 <div class="matriz-stats">
-                    <h4>Oportunidade de Melhoria: {pior_lp['LP']}</h4>
+                    <h4>Recomendações</h4>
                     <ul>
-                        <li><strong>Receita:</strong> R$ {pior_lp['Receita']:,.2f}</li>
-                        <li><strong>ROAS:</strong> {pior_lp['ROAS']:.1f}%</li>
-                        <li><strong>CAC/LTV:</strong> {pior_lp['CAC/LTV']:.2f}</li>
-                        <li><strong>Leads:</strong> {pior_lp['Leads']:,.0f}</li>
+                        <li>{'✅ Manter estratégia atual' if kpis_avancados.get('ltv_cac_ratio', 0) > 1 else '⚠️ Otimizar aquisição'}</li>
+                        <li>{'📈 Expandir investimento' if kpis_avancados.get('roi_medio', 0) > 100 else '🎯 Focar em eficiência'}</li>
+                        <li>{'🔍 Analisar sazonalidade' if abs(analise_tendencia['correlacao_sazonal']) > 0.5 else '📊 Manter monitoramento'}</li>
                     </ul>
                 </div>
                 """, unsafe_allow_html=True)
         
-        else:
-            st.warning("Não há dados disponíveis para análise de LPs no período selecionado")
+        # ALERTAS E OPORTUNIDADES
+        st.subheader("🚨 Alertas e Oportunidades")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if kpis_avancados and kpis_avancados.get('volatilidade_receita', 0) > 30:
+                st.error("**ALERTA:** Alta volatilidade na receita. Recomenda-se investigar causas.")
+            elif kpis_avancados:
+                st.success("**ESTÁVEL:** Baixa volatilidade na receita.")
+            
+            if kpis_avancados and kpis_avancados.get('crescimento_receita', 0) < 0:
+                st.warning("**ATENÇÃO:** Receita em declínio. Avaliar estratégias.")
+            elif kpis_avancados and kpis_avancados.get('crescimento_receita', 0) > 20:
+                st.success("**CRESCIMENTO:** Receita em forte expansão.")
+        
+        with col2:
+            if kpis_avancados and kpis_avancados.get('ltv_cac_ratio', 0) < 1:
+                st.error("**CRÍTICO:** LTV menor que CAC. Revisar urgentemente estratégia de aquisição.")
+            elif kpis_avancados and kpis_avancados.get('ltv_cac_ratio', 0) > 3:
+                st.success("**EXCELENTE:** LTV significativamente maior que CAC. Pode-se aumentar investimento.")
 
 # =============================================
 # APLICAÇÃO PRINCIPAL
