@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,11 +12,37 @@ warnings.filterwarnings('ignore')
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from plotly.offline import init_notebook_mode
+import plotly.io as pio
+
+# Análises avançadas
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 import scipy.stats as stats
+from scipy import signal
+
+# =============================================
+# CONFIGURAÇÕES GLOBAIS E TEMAS
+# =============================================
+
+# Configurar tema Plotly para modo claro/escuro
+def setup_plotly_template():
+    template_light = go.layout.Template()
+    template_light.layout.plot_bgcolor = '#ffffff'
+    template_light.layout.paper_bgcolor = '#ffffff'
+    template_light.layout.font.color = '#111827'
+    
+    template_dark = go.layout.Template()
+    template_dark.layout.plot_bgcolor = '#111827'
+    template_dark.layout.paper_bgcolor = '#111827'
+    template_dark.layout.font.color = '#f9fafb'
+    
+    return template_light, template_dark
+
+TEMPLATE_LIGHT, TEMPLATE_DARK = setup_plotly_template()
 
 # Configuração da página
 st.set_page_config(
@@ -32,50 +57,19 @@ st.set_page_config(
 # =============================================
 
 def detectar_tema_navegador():
-    """
-    Detecta se o usuário está usando tema claro ou escuro no navegador
-    """
+    """Detecta se o usuário está usando tema claro ou escuro no navegador"""
     try:
-        # Tenta detectar via JavaScript o tema preferido do usuário
         if 'detected_theme' not in st.session_state:
-            # Inicializa com tema claro como padrão
             st.session_state.detected_theme = 'light'
             
-        # Script JavaScript para detectar tema
-        theme_script = """
-        <script>
-        try {
-            const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const currentTheme = isDarkMode ? 'dark' : 'light';
-            
-            // Envia para o Streamlit
-            if (window.parent && window.parent.postMessage) {
-                window.parent.postMessage({
-                    type: 'streamlit:setComponentValue',
-                    value: currentTheme
-                }, '*');
-            }
-        } catch(e) {
-            console.log('Erro ao detectar tema:', e);
-        }
-        </script>
-        """
-        
-        # Usa components para executar o JavaScript
-        st.components.v1.html(theme_script, height=0)
-        
         return st.session_state.detected_theme
         
     except Exception as e:
-        # Fallback para tema claro em caso de erro
         return 'light'
 
 def obter_cores_por_tema(tema):
-    """
-    Retorna a paleta de cores adequada para o tema detectado
-    """
+    """Retorna a paleta de cores adequada para o tema detectado"""
     if tema == 'dark':
-        # PALETA PARA TEMA ESCURO
         return {
             'primary': '#3b82f6',
             'primary_light': '#60a5fa',
@@ -100,10 +94,13 @@ def obter_cores_por_tema(tema):
             'success': '#10b981',
             'error': '#ef4444',
             'plot_bg': '#1f2937',
-            'paper_bg': '#111827'
+            'paper_bg': '#111827',
+            'gradient_1': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'gradient_2': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'gradient_3': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'gradient_4': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
         }
     else:
-        # PALETA PARA TEMA CLARO (padrão original)
         return {
             'primary': '#2563eb',
             'primary_light': '#3b82f6',
@@ -128,7 +125,11 @@ def obter_cores_por_tema(tema):
             'success': '#059669',
             'error': '#dc2626',
             'plot_bg': '#ffffff',
-            'paper_bg': '#ffffff'
+            'paper_bg': '#ffffff',
+            'gradient_1': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'gradient_2': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'gradient_3': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'gradient_4': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
         }
 
 # Inicializar tema e cores
@@ -311,6 +312,184 @@ def load_leads_data():
     
     st.info("Arquivo DADOS_RDLEADS.xlsx não encontrado. A aba de análise de leads não estará disponível.")
     return None
+
+# =============================================
+# NOVAS FUNÇÕES DE ANÁLISE AVANÇADA
+# =============================================
+
+def criar_analise_sazonalidade(df):
+    """Análise avançada de sazonalidade e padrões cíclicos"""
+    try:
+        receita_mensal_2024, _ = calcular_receita_mensal(df, 2024)
+        receita_mensal_2025, _ = calcular_receita_mensal(df, 2025)
+        receita_mensal = pd.concat([receita_mensal_2024, receita_mensal_2025], ignore_index=True)
+        
+        if len(receita_mensal) < 6:
+            return None
+        
+        # Decomposição de sazonalidade
+        receita_series = receita_mensal['Receita Bruta'].values
+        x = np.arange(len(receita_series))
+        
+        # Ajustar curva polinomial para tendência
+        z = np.polyfit(x, receita_series, 2)
+        p = np.poly1d(z)
+        tendencia = p(x)
+        
+        # Remover tendência
+        detrended = receita_series - tendencia
+        
+        # Análise de autocorrelação para sazonalidade
+        autocorr = [np.corrcoef(detrended[i:], detrended[:-i])[0,1] for i in range(1, min(13, len(detrended)//2))]
+        
+        # Identificar período sazonal
+        periodo_sazonal = np.argmax(autocorr) + 1 if autocorr else 0
+        
+        return {
+            'tendencia': tendencia,
+            'detrended': detrended,
+            'autocorr': autocorr,
+            'periodo_sazonal': periodo_sazonal,
+            'dados': receita_mensal
+        }
+    except Exception as e:
+        st.error(f"Erro na análise de sazonalidade: {e}")
+        return None
+
+def analisar_impacto_investimento(df, ano_filtro=2025):
+    """Analisa correlação entre investimento e resultados"""
+    try:
+        receita_mensal, _ = calcular_receita_mensal(df, ano_filtro)
+        novos_tutores_mes, _ = calcular_novos_tutores_mes(df, ano_filtro)
+        
+        if receita_mensal.empty or novos_tutores_mes.empty:
+            return None
+        
+        # Combinar dados
+        analise_df = receita_mensal.merge(novos_tutores_mes, on='Mês', how='left')
+        
+        # Adicionar investimento
+        investimento_mensal = INVESTIMENTO_MENSAL_2024 if ano_filtro == 2024 else INVESTIMENTO_MENSAL_2025
+        analise_df['Investimento'] = analise_df['Mês'].map(investimento_mensal).fillna(0)
+        
+        # Calcular correlações
+        correlacao_receita = analise_df['Investimento'].corr(analise_df['Receita Bruta'])
+        correlacao_tutores = analise_df['Investimento'].corr(analise_df['Novos Tutores'])
+        
+        # ROI por mês
+        analise_df['ROI'] = (analise_df['Receita Líquida'] - analise_df['Investimento']) / analise_df['Investimento'] * 100
+        
+        return {
+            'dados': analise_df,
+            'correlacao_receita': correlacao_receita,
+            'correlacao_tutores': correlacao_tutores,
+            'roi_medio': analise_df['ROI'].mean()
+        }
+    except Exception as e:
+        st.error(f"Erro na análise de impacto: {e}")
+        return None
+
+def criar_analise_clusters(df, ano_filtro=2025):
+    """Análise de clusters para segmentação de performance"""
+    try:
+        receita_mensal, _ = calcular_receita_mensal(df, ano_filtro)
+        novos_tutores_mes, _ = calcular_novos_tutores_mes(df, ano_filtro)
+        
+        if receita_mensal.empty or novos_tutores_mes.empty:
+            return None
+        
+        # Combinar métricas para clustering
+        cluster_df = receita_mensal.merge(novos_tutores_mes, on='Mês', how='left')
+        
+        # Adicionar investimento
+        investimento_mensal = INVESTIMENTO_MENSAL_2024 if ano_filtro == 2024 else INVESTIMENTO_MENSAL_2025
+        cluster_df['Investimento'] = cluster_df['Mês'].map(investimento_mensal).fillna(0)
+        
+        # Calcular métricas adicionais
+        cluster_df['CAC'] = cluster_df['Investimento'] / cluster_df['Novos Tutores']
+        cluster_df['Ticket_Medio'] = cluster_df['Receita Bruta'] / cluster_df['Novos Tutores']
+        cluster_df['Eficiencia'] = cluster_df['Receita Líquida'] / cluster_df['Investimento']
+        
+        # Remover infinitos e NaNs
+        cluster_df = cluster_df.replace([np.inf, -np.inf], np.nan).dropna()
+        
+        if len(cluster_df) < 3:
+            return None
+        
+        # Normalizar dados para clustering
+        features = ['Receita Bruta', 'Novos Tutores', 'Investimento', 'CAC', 'Ticket_Medio', 'Eficiencia']
+        X = cluster_df[features].copy()
+        
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        # Aplicar K-means
+        kmeans = KMeans(n_clusters=min(3, len(X_scaled)), random_state=42)
+        cluster_df['Cluster'] = kmeans.fit_predict(X_scaled)
+        
+        # Analisar clusters
+        analise_clusters = cluster_df.groupby('Cluster').agg({
+            'Receita Bruta': 'mean',
+            'Novos Tutores': 'mean',
+            'Investimento': 'mean',
+            'CAC': 'mean',
+            'Ticket_Medio': 'mean',
+            'Eficiencia': 'mean'
+        }).round(2)
+        
+        return {
+            'dados': cluster_df,
+            'analise_clusters': analise_clusters,
+            'centroides': kmeans.cluster_centers_,
+            'features': features
+        }
+    except Exception as e:
+        st.error(f"Erro na análise de clusters: {e}")
+        return None
+
+def calcular_metricas_avancadas_lp(df, ano_filtro=2025):
+    """Métricas avançadas por LP com análise de performance"""
+    try:
+        df_filtrado = df[df['Considerar?'] == 'Sim'].copy()
+        
+        if ano_filtro == 2024:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        else:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        
+        if df_filtrado.empty:
+            return pd.DataFrame()
+        
+        # Agrupar por LP
+        metricas_lp = df_filtrado.groupby('LP').agg({
+            'E-MAIL': 'nunique',
+            'VL UNI': ['sum', 'mean', 'std'],
+            'Mês geração lead': 'nunique'
+        }).round(2)
+        
+        # Simplificar colunas
+        metricas_lp.columns = ['Leads', 'Receita_Total', 'Ticket_Medio', 'Desvio_Ticket', 'Meses_Ativos']
+        
+        # Calcular métricas avançadas
+        metricas_lp['Investimento'] = metricas_lp.index.map(INVESTIMENTO_POR_LP).fillna(0)
+        metricas_lp['CAC'] = metricas_lp['Investimento'] / metricas_lp['Leads']
+        metricas_lp['ROI'] = (metricas_lp['Receita_Total'] * 0.56 - metricas_lp['Investimento']) / metricas_lp['Investimento'] * 100
+        metricas_lp['Eficiencia'] = metricas_lp['Receita_Total'] * 0.56 / metricas_lp['Investimento']
+        metricas_lp['Consistencia'] = 1 / (1 + metricas_lp['Desvio_Ticket'] / metricas_lp['Ticket_Medio'])
+        
+        # Score composto
+        metricas_lp['Score_Performance'] = (
+            metricas_lp['ROI'] * 0.3 +
+            metricas_lp['Eficiencia'] * 0.3 +
+            metricas_lp['Consistencia'] * 0.2 +
+            (metricas_lp['Leads'] / metricas_lp['Leads'].max()) * 0.2
+        )
+        
+        return metricas_lp.sort_values('Score_Performance', ascending=False)
+        
+    except Exception as e:
+        st.error(f"Erro no cálculo de métricas avançadas por LP: {e}")
+        return pd.DataFrame()
 
 # =============================================
 # FUNÇÕES DE ANÁLISE PREDITIVA AVANÇADA
@@ -504,252 +683,340 @@ def calcular_kpis_avancados(df, ano_filtro=2025):
         return {}
 
 # =============================================
-# FUNÇÕES DE ANÁLISE DE LEADS ATUALIZADAS
+# FUNÇÕES DE VISUALIZAÇÃO MELHORADAS
 # =============================================
 
-def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
-    """Análise consolidada mensal de leads COM DADOS DA BASE DE RECEITA"""
+def criar_grafico_animado_evolucao(dados, x_col, y_col, title, categoria_col=None):
+    """Cria gráfico animado com transição suave entre estados"""
+    if dados.empty:
+        return None
+    
     try:
-        # AGORA USANDO APENAS A BASE DE RECEITA PARA CALCULAR LEADS
-        if df_receita is None or df_receita.empty:
-            return pd.DataFrame()
-        
-        # Filtrar dados da base de receita
-        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
-        
-        if ano_filtro == 2024:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        if categoria_col:
+            fig = px.line(
+                dados, 
+                x=x_col, 
+                y=y_col, 
+                color=categoria_col,
+                title=title,
+                template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark'
+            )
+            
+            # Adicionar animação
+            fig.update_layout(
+                xaxis=dict(
+                    rangeslider=dict(visible=True),
+                    type="category"
+                ),
+                updatemenus=[dict(
+                    type="buttons",
+                    direction="left",
+                    buttons=list([
+                        dict(
+                            args=[None, {"frame": {"duration": 500, "redraw": True},
+                                    "fromcurrent": True, "transition": {"duration": 300, "easing": "quadratic-in-out"}}],
+                            label="Play",
+                            method="animate"
+                        ),
+                        dict(
+                            args=[[None], {"frame": {"duration": 0, "redraw": True},
+                                    "mode": "immediate", "transition": {"duration": 0}}],
+                            label="Pause",
+                            method="animate"
+                        )
+                    ]),
+                    pad={"r": 10, "t": 87},
+                    showactive=False,
+                    x=0.1,
+                    xanchor="right",
+                    y=0,
+                    yanchor="top"
+                )]
+            )
         else:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+            fig = px.line(
+                dados, 
+                x=x_col, 
+                y=y_col,
+                title=title,
+                template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark'
+            )
         
-        if df_filtrado.empty:
-            return pd.DataFrame()
-        
-        # Definir ordem dos meses
-        if ano_filtro == 2024:
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
-        # Calcular LEADS ÚNICOS por mês (baseado na base de receita)
-        leads_por_mes = df_filtrado.groupby('Mês geração lead').agg({
-            'E-MAIL': 'nunique',  # Conta emails únicos como leads
-            'VL UNI': 'sum'       # Soma da receita
-        }).reset_index()
-        
-        leads_por_mes.columns = ['Mês', 'Leads', 'Realizado']
-        
-        # Ordenar por ordem dos meses
-        leads_por_mes['Mês_Ordenado'] = pd.Categorical(leads_por_mes['Mês'], categories=ordem_meses, ordered=True)
-        leads_por_mes = leads_por_mes.sort_values('Mês_Ordenado').drop('Mês_Ordenado', axis=1)
-        
-        # Adicionar meses faltantes
-        meses_df = pd.DataFrame({'Mês': ordem_meses})
-        leads_por_mes = meses_df.merge(leads_por_mes, on='Mês', how='left').fillna(0)
-        
-        # Adicionar investimento
-        investimento_mensal = INVESTIMENTO_MENSAL_2024 if ano_filtro == 2024 else INVESTIMENTO_MENSAL_2025
-        leads_por_mes['Investimento'] = leads_por_mes['Mês'].map(investimento_mensal).fillna(0)
-        
-        # Calcular métricas
-        leads_por_mes['CPL'] = leads_por_mes.apply(
-            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        # Melhorar design
+        fig.update_traces(
+            line=dict(width=3),
+            marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey'))
         )
         
-        # Calcular métricas derivadas
-        leads_por_mes['Tx.Conv'] = leads_por_mes.apply(
-            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        fig.update_layout(
+            hovermode='x unified',
+            showlegend=True,
+            height=500,
+            transition={'duration': 500}
         )
         
-        # Calcular tutores únicos por mês (já temos nos 'Leads')
-        leads_por_mes['Tutores'] = leads_por_mes['Leads']
-        
-        leads_por_mes['CAC'] = leads_por_mes.apply(
-            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_mes['Receita'] = leads_por_mes['Realizado'] * 0.56
-        leads_por_mes['ROAS'] = leads_por_mes.apply(
-            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
-        )
-        
-        leads_por_mes['TM'] = leads_por_mes.apply(
-            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_mes['LTV'] = leads_por_mes.apply(
-            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_mes['CAC/LTV'] = leads_por_mes.apply(
-            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
-        )
-        
-        return leads_por_mes
-        
+        return fig
     except Exception as e:
-        st.error(f"Erro na análise consolidada de leads: {e}")
-        return pd.DataFrame()
+        st.error(f"Erro ao criar gráfico animado: {e}")
+        return None
 
-def analisar_leads_por_lp(df_leads, df_receita, ano_filtro=2025):
-    """Análise de leads por LP (categoria) COM DADOS DA BASE DE RECEITA"""
+def criar_heatmap_interativo(matriz, titulo):
+    """Cria heatmap interativo com animações"""
+    if matriz is None or matriz.empty:
+        return None
+    
     try:
-        # AGORA USANDO APENAS A BASE DE RECEITA
-        if df_receita is None or df_receita.empty:
-            return pd.DataFrame()
+        # Criar heatmap com cores dinâmicas
+        fig = go.Figure(data=go.Heatmap(
+            z=matriz.values,
+            x=matriz.columns,
+            y=matriz.index,
+            colorscale='Viridis',
+            hoverongaps=False,
+            hovertemplate='<b>Mês Receita: %{y}</b><br><b>Mês Lead: %{x}</b><br>Valor: %{z:,.2f}<extra></extra>',
+            showscale=True,
+            text=[[f'R$ {val:,.0f}' if val > 0 else '' for val in row] for row in matriz.values],
+            texttemplate="%{text}",
+            textfont={"size": 10, "color": "white"}
+        ))
         
-        # Filtrar dados da base de receita
-        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
-        
-        if ano_filtro == 2024:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
-        else:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
-        
-        if df_filtrado.empty:
-            return pd.DataFrame()
-        
-        # Agrupar por LP
-        leads_por_lp = df_filtrado.groupby('LP').agg({
-            'E-MAIL': 'nunique',  # Leads únicos
-            'VL UNI': 'sum'       # Receita realizada
-        }).reset_index()
-        
-        leads_por_lp.columns = ['LP', 'Leads', 'Realizado']
-        
-        # Adicionar investimento
-        leads_por_lp['Investimento'] = leads_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
-        
-        # Calcular métricas
-        leads_por_lp['CPL'] = leads_por_lp.apply(
-            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        # Adicionar animação de entrada
+        fig.update_layout(
+            title=dict(
+                text=titulo,
+                font=dict(size=16, color=COLORS['text_primary']),
+                x=0.5
+            ),
+            xaxis_title="Mês de Geração do Lead",
+            yaxis_title="Mês de Geração da Receita",
+            height=500,
+            font=dict(family="Arial, sans-serif", size=12, color=COLORS['text_primary']),
+            plot_bgcolor=COLORS['plot_bg'],
+            paper_bgcolor=COLORS['paper_bg'],
+            # Configurações de animação
+            updatemenus=[{
+                "buttons": [
+                    {
+                        "args": [None, {"frame": {"duration": 500, "redraw": True},
+                                      "fromcurrent": True, "transition": {"duration": 300}}],
+                        "label": "Play",
+                        "method": "animate"
+                    }
+                ],
+                "direction": "left",
+                "pad": {"r": 10, "t": 87},
+                "showactive": False,
+                "type": "buttons",
+                "x": 0.1,
+                "xanchor": "right",
+                "y": 0,
+                "yanchor": "top"
+            }]
         )
         
-        leads_por_lp['Tx.Conv'] = leads_por_lp.apply(
-            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp['Tutores'] = leads_por_lp['Leads']
-        
-        leads_por_lp['CAC'] = leads_por_lp.apply(
-            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp['Receita'] = leads_por_lp['Realizado'] * 0.56
-        leads_por_lp['ROAS'] = leads_por_lp.apply(
-            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp['TM'] = leads_por_lp.apply(
-            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp['LTV'] = leads_por_lp.apply(
-            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp['CAC/LTV'] = leads_por_lp.apply(
-            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
-        )
-        
-        return leads_por_lp.sort_values('Receita', ascending=False)
-        
+        return fig
     except Exception as e:
-        st.error(f"Erro na análise de leads por LP: {e}")
-        return pd.DataFrame()
+        st.error(f"Erro ao criar heatmap interativo: {e}")
+        return None
 
-def analisar_leads_por_lp_mensal(df_leads, df_receita, ano_filtro=2025):
-    """Análise mensal de leads por LP COM DADOS DA BASE DE RECEITA"""
+def criar_grafico_radar_performance(metricas_lp):
+    """Cria gráfico radar para comparar performance das LPs"""
+    if metricas_lp.empty:
+        return None
+    
     try:
-        # AGORA USANDO APENAS A BASE DE RECEITA
-        if df_receita is None or df_receita.empty:
-            return pd.DataFrame()
+        # Selecionar top LPs
+        top_lps = metricas_lp.head(6)
         
-        # Filtrar dados da base de receita
-        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
+        fig = go.Figure()
         
-        if ano_filtro == 2024:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
-        else:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        # Métricas para o radar (normalizadas)
+        categorias = ['ROI', 'Eficiencia', 'Consistencia', 'Ticket_Medio', 'Leads']
         
-        if df_filtrado.empty:
-            return pd.DataFrame()
+        for lp in top_lps.index:
+            valores = [
+                top_lps.loc[lp, 'ROI'] / 100,  # Normalizar ROI
+                top_lps.loc[lp, 'Eficiencia'],
+                top_lps.loc[lp, 'Consistencia'],
+                top_lps.loc[lp, 'Ticket_Medio'] / top_lps['Ticket_Medio'].max(),
+                top_lps.loc[lp, 'Leads'] / top_lps['Leads'].max()
+            ]
+            
+            fig.add_trace(go.Scatterpolar(
+                r=valores + [valores[0]],  # Fechar o polígono
+                theta=categorias + [categorias[0]],
+                fill='toself',
+                name=lp,
+                line=dict(width=2)
+            ))
         
-        # Definir ordem dos meses
-        if ano_filtro == 2024:
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
-        # Agrupar por LP e mês
-        leads_por_lp_mes = df_filtrado.groupby(['LP', 'Mês geração lead']).agg({
-            'E-MAIL': 'nunique',
-            'VL UNI': 'sum'
-        }).reset_index()
-        
-        leads_por_lp_mes.columns = ['LP', 'Mês', 'Leads', 'Realizado']
-        
-        # Adicionar investimento mensal proporcional
-        investimento_total_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
-        investimento_total_por_lp['Investimento_Total'] = investimento_total_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
-        
-        leads_por_lp_mes = leads_por_lp_mes.merge(investimento_total_por_lp[['LP', 'Investimento_Total']], on='LP', how='left')
-        
-        # Calcular investimento mensal proporcional aos leads
-        total_leads_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
-        total_leads_por_lp.columns = ['LP', 'Total_Leads']
-        
-        leads_por_lp_mes = leads_por_lp_mes.merge(total_leads_por_lp, on='LP', how='left')
-        leads_por_lp_mes['Investimento'] = leads_por_lp_mes.apply(
-            lambda x: (x['Leads'] / x['Total_Leads']) * x['Investimento_Total'] if x['Total_Leads'] > 0 else 0, axis=1
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 1]
+                )),
+            showlegend=True,
+            title="Comparação de Performance por LP (Radar)",
+            height=500,
+            template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark'
         )
         
-        # Calcular métricas
-        leads_por_lp_mes['CPL'] = leads_por_lp_mes.apply(
-            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp_mes['Tx.Conv'] = leads_por_lp_mes.apply(
-            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp_mes['Tutores'] = leads_por_lp_mes['Leads']
-        
-        leads_por_lp_mes['CAC'] = leads_por_lp_mes.apply(
-            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp_mes['Receita'] = leads_por_lp_mes['Realizado'] * 0.56
-        leads_por_lp_mes['ROAS'] = leads_por_lp_mes.apply(
-            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp_mes['TM'] = leads_por_lp_mes.apply(
-            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp_mes['LTV'] = leads_por_lp_mes.apply(
-            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
-        )
-        
-        leads_por_lp_mes['CAC/LTV'] = leads_por_lp_mes.apply(
-            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
-        )
-        
-        # Ordenar por mês
-        leads_por_lp_mes['Mês_Ordenado'] = pd.Categorical(leads_por_lp_mes['Mês'], categories=ordem_meses, ordered=True)
-        leads_por_lp_mes = leads_por_lp_mes.sort_values(['LP', 'Mês_Ordenado']).drop('Mês_Ordenado', axis=1)
-        
-        return leads_por_lp_mes
-        
+        return fig
     except Exception as e:
-        st.error(f"Erro na análise mensal de leads por LP: {e}")
-        return pd.DataFrame()
+        st.error(f"Erro ao criar gráfico radar: {e}")
+        return None
+
+def criar_dashboard_interativo_kpis(kpis_avancados):
+    """Cria dashboard interativo com KPIs animados"""
+    if not kpis_avancados:
+        return None
+    
+    try:
+        # Criar subplots
+        fig = make_subplots(
+            rows=2, cols=2,
+            specs=[[{"type": "indicator"}, {"type": "indicator"}],
+                   [{"type": "indicator"}, {"type": "indicator"}]],
+            subplot_titles=("ROI Médio", "LTV/CAC Ratio", "Eficiência Marketing", "Crescimento")
+        )
+        
+        # ROI Médio - Gauge
+        fig.add_trace(go.Indicator(
+            mode = "gauge+number+delta",
+            value = kpis_avancados.get('roi_medio', 0),
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': "ROI Médio (%)"},
+            gauge = {
+                'axis': {'range': [None, max(100, kpis_avancados.get('roi_medio', 0) * 1.2)]},
+                'bar': {'color': COLORS['primary']},
+                'steps': [
+                    {'range': [0, 50], 'color': COLORS['error']},
+                    {'range': [50, 100], 'color': COLORS['warning']},
+                    {'range': [100, 200], 'color': COLORS['success']}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 100
+                }
+            }
+        ), row=1, col=1)
+        
+        # LTV/CAC Ratio
+        fig.add_trace(go.Indicator(
+            mode = "number+delta",
+            value = kpis_avancados.get('ltv_cac_ratio', 0),
+            number = {'prefix': "x"},
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': "LTV/CAC Ratio"},
+            delta = {'reference': 1, 'position': "bottom"}
+        ), row=1, col=2)
+        
+        # Eficiência Marketing
+        fig.add_trace(go.Indicator(
+            mode = "number+delta",
+            value = kpis_avancados.get('eficiencia_marketing', 0),
+            number = {'valueformat': ".2f"},
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': "Eficiência Marketing"},
+            delta = {'reference': 1, 'position': "bottom"}
+        ), row=2, col=1)
+        
+        # Crescimento
+        fig.add_trace(go.Indicator(
+            mode = "number+delta",
+            value = kpis_avancados.get('crescimento_receita', 0),
+            number = {'suffix': "%"},
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': "Crescimento Receita"},
+            delta = {'reference': 0, 'position': "bottom"}
+        ), row=2, col=2)
+        
+        fig.update_layout(
+            height=400,
+            template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark',
+            paper_bgcolor=COLORS['paper_bg'],
+            font={'color': COLORS['text_primary']}
+        )
+        
+        return fig
+    except Exception as e:
+        st.error(f"Erro ao criar dashboard interativo: {e}")
+        return None
+
+def criar_analise_sazonalidade_grafico(analise_sazonal):
+    """Cria gráfico animado de análise de sazonalidade"""
+    if not analise_sazonal:
+        return None
+    
+    try:
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                "Série Temporal Original", 
+                "Tendência", 
+                "Componente Sazonal", 
+                "Autocorrelação"
+            )
+        )
+        
+        dados = analise_sazonal['dados']
+        
+        # Série original
+        fig.add_trace(
+            go.Scatter(
+                x=dados['Mês'], 
+                y=dados['Receita Bruta'],
+                mode='lines+markers',
+                name='Receita Bruta',
+                line=dict(color=COLORS['primary'], width=3)
+            ), row=1, col=1
+        )
+        
+        # Tendência
+        fig.add_trace(
+            go.Scatter(
+                x=dados['Mês'], 
+                y=analise_sazonal['tendencia'],
+                mode='lines',
+                name='Tendência',
+                line=dict(color=COLORS['secondary'], width=3, dash='dash')
+            ), row=1, col=2
+        )
+        
+        # Componente sazonal
+        fig.add_trace(
+            go.Scatter(
+                x=dados['Mês'], 
+                y=analise_sazonal['detrended'],
+                mode='lines+markers',
+                name='Sazonalidade',
+                line=dict(color=COLORS['warning'], width=2)
+            ), row=2, col=1
+        )
+        
+        # Autocorrelação
+        fig.add_trace(
+            go.Bar(
+                x=list(range(1, len(analise_sazonal['autocorr'])+1)),
+                y=analise_sazonal['autocorr'],
+                name='Autocorrelação',
+                marker_color=COLORS['info']
+            ), row=2, col=2
+        )
+        
+        fig.update_layout(
+            height=600,
+            showlegend=True,
+            template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark',
+            title_text="Análise Avançada de Sazonalidade"
+        )
+        
+        return fig
+    except Exception as e:
+        st.error(f"Erro ao criar gráfico de sazonalidade: {e}")
+        return None
 
 # =============================================
 # FUNÇÕES EXISTENTES (MANTIDAS)
@@ -794,8 +1061,14 @@ def login_screen():
         }}
 
         @keyframes fadeIn {{
-            from {{ opacity: 0; transform: translateY(-20px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
+            from {{
+                opacity: 0;
+                transform: translateY(-20px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
         }}
 
         /* Inputs */
@@ -1503,6 +1776,254 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
     return fig
 
 # =============================================
+# FUNÇÕES DE ANÁLISE DE LEADS ATUALIZADAS
+# =============================================
+
+def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
+    """Análise consolidada mensal de leads COM DADOS DA BASE DE RECEITA"""
+    try:
+        # AGORA USANDO APENAS A BASE DE RECEITA PARA CALCULAR LEADS
+        if df_receita is None or df_receita.empty:
+            return pd.DataFrame()
+        
+        # Filtrar dados da base de receita
+        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
+        
+        if ano_filtro == 2024:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        else:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        
+        if df_filtrado.empty:
+            return pd.DataFrame()
+        
+        # Definir ordem dos meses
+        if ano_filtro == 2024:
+            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
+                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
+        else:
+            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
+                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
+        
+        # Calcular LEADS ÚNICOS por mês (baseado na base de receita)
+        leads_por_mes = df_filtrado.groupby('Mês geração lead').agg({
+            'E-MAIL': 'nunique',  # Conta emails únicos como leads
+            'VL UNI': 'sum'       # Soma da receita
+        }).reset_index()
+        
+        leads_por_mes.columns = ['Mês', 'Leads', 'Realizado']
+        
+        # Ordenar por ordem dos meses
+        leads_por_mes['Mês_Ordenado'] = pd.Categorical(leads_por_mes['Mês'], categories=ordem_meses, ordered=True)
+        leads_por_mes = leads_por_mes.sort_values('Mês_Ordenado').drop('Mês_Ordenado', axis=1)
+        
+        # Adicionar meses faltantes
+        meses_df = pd.DataFrame({'Mês': ordem_meses})
+        leads_por_mes = meses_df.merge(leads_por_mes, on='Mês', how='left').fillna(0)
+        
+        # Adicionar investimento
+        investimento_mensal = INVESTIMENTO_MENSAL_2024 if ano_filtro == 2024 else INVESTIMENTO_MENSAL_2025
+        leads_por_mes['Investimento'] = leads_por_mes['Mês'].map(investimento_mensal).fillna(0)
+        
+        # Calcular métricas
+        leads_por_mes['CPL'] = leads_por_mes.apply(
+            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        )
+        
+        # Calcular métricas derivadas
+        leads_por_mes['Tx.Conv'] = leads_por_mes.apply(
+            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        # Calcular tutores únicos por mês (já temos nos 'Leads')
+        leads_por_mes['Tutores'] = leads_por_mes['Leads']
+        
+        leads_por_mes['CAC'] = leads_por_mes.apply(
+            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['Receita'] = leads_por_mes['Realizado'] * 0.56
+        leads_por_mes['ROAS'] = leads_por_mes.apply(
+            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['TM'] = leads_por_mes.apply(
+            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['LTV'] = leads_por_mes.apply(
+            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_mes['CAC/LTV'] = leads_por_mes.apply(
+            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
+        )
+        
+        return leads_por_mes
+        
+    except Exception as e:
+        st.error(f"Erro na análise consolidada de leads: {e}")
+        return pd.DataFrame()
+
+def analisar_leads_por_lp(df_leads, df_receita, ano_filtro=2025):
+    """Análise de leads por LP (categoria) COM DADOS DA BASE DE RECEITA"""
+    try:
+        # AGORA USANDO APENAS A BASE DE RECEITA
+        if df_receita is None or df_receita.empty:
+            return pd.DataFrame()
+        
+        # Filtrar dados da base de receita
+        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
+        
+        if ano_filtro == 2024:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        else:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        
+        if df_filtrado.empty:
+            return pd.DataFrame()
+        
+        # Agrupar por LP
+        leads_por_lp = df_filtrado.groupby('LP').agg({
+            'E-MAIL': 'nunique',  # Leads únicos
+            'VL UNI': 'sum'       # Receita realizada
+        }).reset_index()
+        
+        leads_por_lp.columns = ['LP', 'Leads', 'Realizado']
+        
+        # Adicionar investimento
+        leads_por_lp['Investimento'] = leads_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
+        
+        # Calcular métricas
+        leads_por_lp['CPL'] = leads_por_lp.apply(
+            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['Tx.Conv'] = leads_por_lp.apply(
+            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['Tutores'] = leads_por_lp['Leads']
+        
+        leads_por_lp['CAC'] = leads_por_lp.apply(
+            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['Receita'] = leads_por_lp['Realizado'] * 0.56
+        leads_por_lp['ROAS'] = leads_por_lp.apply(
+            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['TM'] = leads_por_lp.apply(
+            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['LTV'] = leads_por_lp.apply(
+            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp['CAC/LTV'] = leads_por_lp.apply(
+            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
+        )
+        
+        return leads_por_lp.sort_values('Receita', ascending=False)
+        
+    except Exception as e:
+        st.error(f"Erro na análise de leads por LP: {e}")
+        return pd.DataFrame()
+
+def analisar_leads_por_lp_mensal(df_leads, df_receita, ano_filtro=2025):
+    """Análise mensal de leads por LP COM DADOS DA BASE DE RECEITA"""
+    try:
+        # AGORA USANDO APENAS A BASE DE RECEITA
+        if df_receita is None or df_receita.empty:
+            return pd.DataFrame()
+        
+        # Filtrar dados da base de receita
+        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
+        
+        if ano_filtro == 2024:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
+        else:
+            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        
+        if df_filtrado.empty:
+            return pd.DataFrame()
+        
+        # Definir ordem dos meses
+        if ano_filtro == 2024:
+            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
+                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
+        else:
+            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
+                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
+        
+        # Agrupar por LP e mês
+        leads_por_lp_mes = df_filtrado.groupby(['LP', 'Mês geração lead']).agg({
+            'E-MAIL': 'nunique',
+            'VL UNI': 'sum'
+        }).reset_index()
+        
+        leads_por_lp_mes.columns = ['LP', 'Mês', 'Leads', 'Realizado']
+        
+        # Adicionar investimento mensal proporcional
+        investimento_total_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
+        investimento_total_por_lp['Investimento_Total'] = investimento_total_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
+        
+        leads_por_lp_mes = leads_por_lp_mes.merge(investimento_total_por_lp[['LP', 'Investimento_Total']], on='LP', how='left')
+        
+        # Calcular investimento mensal proporcional aos leads
+        total_leads_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
+        total_leads_por_lp.columns = ['LP', 'Total_Leads']
+        
+        leads_por_lp_mes = leads_por_lp_mes.merge(total_leads_por_lp, on='LP', how='left')
+        leads_por_lp_mes['Investimento'] = leads_por_lp_mes.apply(
+            lambda x: (x['Leads'] / x['Total_Leads']) * x['Investimento_Total'] if x['Total_Leads'] > 0 else 0, axis=1
+        )
+        
+        # Calcular métricas
+        leads_por_lp_mes['CPL'] = leads_por_lp_mes.apply(
+            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['Tx.Conv'] = leads_por_lp_mes.apply(
+            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['Tutores'] = leads_por_lp_mes['Leads']
+        
+        leads_por_lp_mes['CAC'] = leads_por_lp_mes.apply(
+            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['Receita'] = leads_por_lp_mes['Realizado'] * 0.56
+        leads_por_lp_mes['ROAS'] = leads_por_lp_mes.apply(
+            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['TM'] = leads_por_lp_mes.apply(
+            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['LTV'] = leads_por_lp_mes.apply(
+            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+        )
+        
+        leads_por_lp_mes['CAC/LTV'] = leads_por_lp_mes.apply(
+            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
+        )
+        
+        # Ordenar por mês
+        leads_por_lp_mes['Mês_Ordenado'] = pd.Categorical(leads_por_lp_mes['Mês'], categories=ordem_meses, ordered=True)
+        leads_por_lp_mes = leads_por_lp_mes.sort_values(['LP', 'Mês_Ordenado']).drop('Mês_Ordenado', axis=1)
+        
+        return leads_por_lp_mes
+        
+    except Exception as e:
+        st.error(f"Erro na análise mensal de leads por LP: {e}")
+        return pd.DataFrame()
+
+# =============================================
 # DASHBOARD PRINCIPAL COMPLETO
 # =============================================
 
@@ -1512,7 +2033,7 @@ def main_dashboard():
     TEMA_ATUAL = detectar_tema_navegador()
     COLORS = obter_cores_por_tema(TEMA_ATUAL)
     
-    # Configuração CSS completa
+    # Configuração CSS completa com animações
     st.markdown(f"""
     <style>
     /* FUNDO DINÂMICO PARA TODA A APLICAÇÃO */
@@ -1555,6 +2076,48 @@ def main_dashboard():
     section[data-testid="stSidebar"] div,
     section[data-testid="stSidebar"] span {{
         color: {COLORS['text_primary']} !important;
+    }}
+    
+    /* Animações CSS */
+    @keyframes fadeInUp {{
+        from {{
+            opacity: 0;
+            transform: translateY(30px);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateY(0);
+        }}
+    }}
+    
+    @keyframes pulse {{
+        0% {{ transform: scale(1); }}
+        50% {{ transform: scale(1.05); }}
+        100% {{ transform: scale(1); }}
+    }}
+    
+    @keyframes slideInLeft {{
+        from {{
+            opacity: 0;
+            transform: translateX(-30px);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateX(0);
+        }}
+    }}
+    
+    /* Aplicar animações */
+    .animated-card {{
+        animation: fadeInUp 0.6s ease-out;
+    }}
+    
+    .pulse-hover:hover {{
+        animation: pulse 0.6s ease-in-out;
+    }}
+    
+    .slide-in {{
+        animation: slideInLeft 0.5s ease-out;
     }}
     
     /* TEXTOS PRINCIPAIS */
@@ -1727,6 +2290,43 @@ def main_dashboard():
         margin: 1rem 0;
     }}
     
+    /* Melhorias visuais adicionais */
+    .metric-card {{
+        background: {COLORS['gradient_1']};
+        border-radius: 15px;
+        padding: 1.5rem;
+        color: white;
+        margin: 0.5rem 0;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }}
+    
+    .metric-card:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+    }}
+    
+    .glow-effect {{
+        box-shadow: 0 0 20px {COLORS['primary']}30;
+    }}
+    
+    /* Gradientes modernos */
+    .gradient-primary {{
+        background: {COLORS['gradient_1']};
+    }}
+    
+    .gradient-success {{
+        background: {COLORS['gradient_4']};
+    }}
+    
+    .gradient-warning {{
+        background: {COLORS['gradient_2']};
+    }}
+    
+    .gradient-info {{
+        background: {COLORS['gradient_3']};
+    }}
+    
     /* TABELAS */
     .dataframe th {{
         background-color: {COLORS['primary']};
@@ -1843,9 +2443,11 @@ def main_dashboard():
         
         st.info(f"Filtro Ativo: Ano {ano_selecionado}")
         
-        if 'UNIDADE DE NEGOCIO' in df.columns:
-            unidades = ['Todas'] + sorted(df['UNIDADE DE NEGOCIO'].dropna().unique().tolist())
-            unidade_selecionada = st.selectbox("Unidade de Negócio", unidades)
+        # Novos filtros avançados
+        st.subheader("Análises Avançadas")
+        analise_sazonal = st.checkbox("Análise de Sazonalidade", value=True)
+        analise_clusters = st.checkbox("Segmentação por Clusters", value=True)
+        analise_impacto = st.checkbox("Análise de Impacto do Investimento", value=True)
     
     # Processar dados
     with st.spinner(f"Calculando métricas avançadas para {ano_selecionado}..."):
@@ -1880,19 +2482,59 @@ def main_dashboard():
         df_previsoes, resultados_modelos, dados_historicos, desvio_padrao = criar_modelo_preditivo_receita(df)
         analise_tendencia = analisar_tendencia_avancada(df)
         kpis_avancados = calcular_kpis_avancados(df, ano_selecionado)
+        
+        # NOVAS ANÁLISES
+        if analise_sazonal:
+            analise_sazonal_data = criar_analise_sazonalidade(df)
+        
+        if analise_impacto:
+            analise_impacto_data = analisar_impacto_investimento(df, ano_selecionado)
+        
+        if analise_clusters:
+            analise_clusters_data = criar_analise_clusters(df, ano_selecionado)
+        
+        metricas_avancadas_lp = calcular_metricas_avancadas_lp(df, ano_selecionado)
     
     # SISTEMA DE ABAS COMPLETO
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Visão Geral", 
         "Matrizes Escadinha",
-        "LP Leads",
-        "Análise Preditiva"
+        "LP Leads", 
+        "Análise Preditiva",
+        "Análises Avançadas"
     ])
     
     with tab1:
         st.markdown(f'<div class="section-header"><h2 class="section-title">Visão Geral do Performance</h2><p class="section-subtitle">Métricas consolidadas e tendências do período</p></div>', unsafe_allow_html=True)
         
         if not receita_mensal.empty:
+            # Resumo das outras abas
+            st.subheader("Resumo das Análises")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown("**Matrizes Escadinha**")
+                if estatisticas_receita:
+                    st.metric("Eficiência Temporal", f"{estatisticas_receita['eficiencia']:.1%}")
+            
+            with col2:
+                st.markdown("**LP e Leads**")
+                if not leads_por_lp.empty:
+                    top_lp = leads_por_lp.iloc[0]
+                    st.metric("Top LP", top_lp['LP'])
+            
+            with col3:
+                st.markdown("**Análise Preditiva**")
+                if df_previsoes is not None:
+                    previsao_media = df_previsoes['Receita Bruta Prevista'].mean()
+                    st.metric("Previsão Média", f"R$ {previsao_media:,.0f}")
+            
+            with col4:
+                st.markdown("**Análises Avançadas**")
+                if kpis_avancados:
+                    st.metric("ROI Médio", f"{kpis_avancados.get('roi_medio', 0):.1f}%")
+
             # KPIs Avançados - APENAS MÉTRICAS PRINCIPAIS
             st.subheader("Métricas Principais")
             
@@ -2424,7 +3066,7 @@ def main_dashboard():
         st.markdown(f'<div class="section-header"><h2 class="section-title">Análise Preditiva e Insights Avançados</h2><p class="section-subtitle">Previsões e análises estratégicas baseadas em machine learning</p></div>', unsafe_allow_html=True)
         
         # ANÁLISE PREDITIVA
-        st.subheader("🔮 Previsão de Receita")
+        st.subheader("Previsão de Receita")
         
         if df_previsoes is not None:
             col1, col2 = st.columns([2, 1])
@@ -2490,7 +3132,7 @@ def main_dashboard():
             st.warning("Não há dados suficientes para gerar previsões. São necessários pelo menos 3 meses de dados históricos.")
         
         # ANÁLISE DE TENDÊNCIA
-        st.subheader("📈 Análise de Tendência")
+        st.subheader("Análise de Tendência")
         
         if analise_tendencia:
             col1, col2, col3, col4 = st.columns(4)
@@ -2531,7 +3173,7 @@ def main_dashboard():
             st.plotly_chart(fig_tendencia, use_container_width=True)
         
         # INSIGHTS ESTRATÉGICOS
-        st.subheader("💡 Insights Estratégicos")
+        st.subheader("Insights Estratégicos")
         
         if kpis_avancados:
             col1, col2 = st.columns(2)
@@ -2561,7 +3203,7 @@ def main_dashboard():
                 """, unsafe_allow_html=True)
         
         # ALERTAS E OPORTUNIDADES
-        st.subheader("🚨 Alertas e Oportunidades")
+        st.subheader("Alertas e Oportunidades")
         
         col1, col2 = st.columns(2)
         
@@ -2581,6 +3223,132 @@ def main_dashboard():
                 st.error("**CRÍTICO:** LTV menor que CAC. Revisar urgentemente estratégia de aquisição.")
             elif kpis_avancados and kpis_avancados.get('ltv_cac_ratio', 0) > 3:
                 st.success("**EXCELENTE:** LTV significativamente maior que CAC. Pode-se aumentar investimento.")
+    
+    with tab5:  # NOVA ABA PARA ANÁLISES AVANÇADAS
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Análises Avançadas e Segmentação</h2><p class="section-subtitle">Insights profundos com machine learning e estatística</p></div>', unsafe_allow_html=True)
+        
+        # ANÁLISE DE SAZONALIDADE
+        if analise_sazonal and analise_sazonal_data:
+            st.subheader("Análise de Sazonalidade e Tendência")
+            sazonalidade_chart = criar_analise_sazonalidade_grafico(analise_sazonal_data)
+            if sazonalidade_chart:
+                st.plotly_chart(sazonalidade_chart, use_container_width=True)
+                
+                # Insights da sazonalidade
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Período Sazonal Identificado", 
+                             f"{analise_sazonal_data['periodo_sazonal']} meses")
+                with col2:
+                    autocorr_max = max(analise_sazonal_data['autocorr']) if analise_sazonal_data['autocorr'] else 0
+                    st.metric("Força da Sazonalidade", f"{autocorr_max:.2f}")
+                with col3:
+                    st.metric("Recomendação", 
+                             "Ajustar Campanhas" if analise_sazonal_data['periodo_sazonal'] > 0 else "Padrão Estável")
+        
+        # ANÁLISE DE IMPACTO DO INVESTIMENTO
+        if analise_impacto and analise_impacto_data:
+            st.subheader("Análise de Correlação Investimento-Resultados")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Correlação Investimento-Receita", 
+                         f"{analise_impacto_data['correlacao_receita']:.3f}")
+            with col2:
+                st.metric("Correlação Investimento-Tutores", 
+                         f"{analise_impacto_data['correlacao_tutores']:.3f}")
+            with col3:
+                st.metric("ROI Médio do Período", 
+                         f"{analise_impacto_data['roi_medio']:.1f}%")
+            
+            # Gráfico de correlação
+            fig_correlacao = px.scatter(
+                analise_impacto_data['dados'],
+                x='Investimento',
+                y='Receita Bruta',
+                size='Novos Tutores',
+                color='Receita Líquida',
+                hover_data=['Mês'],
+                title="Relação Investimento vs Receita",
+                template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark'
+            )
+            st.plotly_chart(fig_correlacao, use_container_width=True)
+        
+        # ANÁLISE DE CLUSTERS
+        if analise_clusters and analise_clusters_data:
+            st.subheader("Segmentação por Clusters de Performance")
+            
+            # Mostrar análise dos clusters
+            st.dataframe(analise_clusters_data['analise_clusters'], use_container_width=True)
+            
+            # Gráfico de clusters
+            fig_clusters = px.scatter_3d(
+                analise_clusters_data['dados'],
+                x='Receita Bruta',
+                y='Novos Tutores',
+                z='Investimento',
+                color='Cluster',
+                size='Eficiencia',
+                hover_data=['Mês'],
+                title="Segmentação por Clusters - Análise 3D",
+                template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark'
+            )
+            st.plotly_chart(fig_clusters, use_container_width=True)
+            
+            # Interpretação dos clusters
+            st.subheader("Interpretação dos Clusters")
+            cluster_analysis = analise_clusters_data['analise_clusters']
+            
+            for cluster_id in cluster_analysis.index:
+                with st.expander(f"Cluster {cluster_id} - Características"):
+                    cluster_data = cluster_analysis.loc[cluster_id]
+                    st.write(f"**Receita Média:** R$ {cluster_data['Receita Bruta']:,.0f}")
+                    st.write(f"**Novos Tutores:** {cluster_data['Novos Tutores']:.0f}")
+                    st.write(f"**Eficiência:** {cluster_data['Eficiencia']:.2f}")
+                    st.write(f"**CAC:** R$ {cluster_data['CAC']:,.0f}")
+                    
+                    # Recomendações baseadas no cluster
+                    if cluster_data['Eficiencia'] > 1.5:
+                        st.success("**Alta Eficiência** - Manter e expandir estratégia")
+                    elif cluster_data['Eficiencia'] < 0.8:
+                        st.warning("**Baixa Eficiência** - Revisar estratégia de aquisição")
+        
+        # ANÁLISE DE SENSIBILIDADE
+        st.subheader("Análise de Sensibilidade")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Simulador de cenários
+            st.markdown("#### Simulador de Cenários")
+            investimento_base = st.number_input("Investimento Base (R$)", 
+                                              value=100000, step=5000)
+            variacao_ticket = st.slider("Variação no Ticket Médio (%)", -20, 20, 0)
+            variacao_conversao = st.slider("Variação na Taxa de Conversão (%)", -20, 20, 0)
+            
+            # Cálculo simplificado do impacto
+            receita_estimada = investimento_base * (1 + variacao_ticket/100) * (1 + variacao_conversao/100)
+            st.metric("Receita Estimada", f"R$ {receita_estimada:,.0f}")
+        
+        with col2:
+            # Análise de break-even
+            st.markdown("#### Análise de Break-Even")
+            custo_fixo = st.number_input("Custo Fixo Mensal (R$)", value=50000, step=5000)
+            ticket_medio = st.number_input("Ticket Médio (R$)", value=1500, step=100)
+            custo_variavel = st.number_input("Custo Variável por Tutor (R$)", value=500, step=50)
+            
+            if ticket_medio > custo_variavel:
+                break_even = custo_fixo / (ticket_medio - custo_variavel)
+                st.metric("Tutores para Break-Even", f"{break_even:.0f}")
+            else:
+                st.error("Ticket médio insuficiente para cobrir custos variáveis")
+        
+        # NOVO: Gráfico Radar de Performance
+        if not metricas_avancadas_lp.empty:
+            st.subheader("Análise Comparativa de LPs - Radar")
+            radar_chart = criar_grafico_radar_performance(metricas_avancadas_lp)
+            if radar_chart:
+                st.plotly_chart(radar_chart, use_container_width=True)
 
 # =============================================
 # APLICAÇÃO PRINCIPAL
