@@ -190,6 +190,15 @@ CREDENCIAIS = {
     "Midianewton": "New@2025"
 }
 
+MESES_POR_ANO = {
+    2024: ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24',
+           'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24'],
+    2025: ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25',
+           'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
+}
+
+TODOS_MESES = MESES_POR_ANO[2024] + MESES_POR_ANO[2025]
+
 # =============================================
 # FUNÇÕES AUXILIARES
 # =============================================
@@ -312,6 +321,34 @@ def load_leads_data():
     
     st.info("Arquivo DADOS_RDLEADS.xlsx não encontrado. A aba de análise de leads não estará disponível.")
     return None
+
+def filtrar_receita_base(df, ano=None, exigir_lead=True):
+    """Retorna registros que atendem aos critérios de receita bruta."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    df_local = df.copy()
+    df_local['VL UNI'] = pd.to_numeric(df_local.get('VL UNI', 0), errors='coerce').fillna(0)
+
+    considerar_col = df_local.get('Considerar?', pd.Series(dtype=str)).astype(str).str.strip().str.lower()
+    df_local = df_local[considerar_col == 'sim']
+
+    meses_receita = df_local.get('Mês geração receita', pd.Series(dtype=str)).astype(str).str.strip()
+    meses_lead = df_local.get('Mês geração lead', pd.Series(dtype=str)).astype(str).str.strip()
+    df_local['Mês geração receita'] = meses_receita
+    df_local['Mês geração lead'] = meses_lead
+
+    if ano is not None:
+        meses_validos = MESES_POR_ANO.get(ano, [])
+    else:
+        meses_validos = TODOS_MESES
+
+    if meses_validos:
+        df_local = df_local[df_local['Mês geração receita'].isin(meses_validos)]
+        if exigir_lead:
+            df_local = df_local[df_local['Mês geração lead'].isin(meses_validos)]
+
+    return df_local.reset_index(drop=True)
 
 # =============================================
 # NOVAS FUNÇÕES DE ANÁLISE AVANÇADA
@@ -450,12 +487,15 @@ def criar_analise_clusters(df, ano_filtro=2025):
 def calcular_metricas_avancadas_lp(df, ano_filtro=2025):
     """Métricas avançadas por LP com análise de performance"""
     try:
-        df_filtrado = df[df['Considerar?'] == 'Sim'].copy()
+        df_filtrado = filtrar_receita_base(df, ano=ano_filtro, exigir_lead=True)
+        if df_filtrado.empty:
+            return pd.DataFrame()
         
-        if ano_filtro == 2024:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
-        else:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
+        df_filtrado = df_filtrado[
+            (df_filtrado['LP'].notna()) &
+            (df_filtrado['LP'] != '00. Not Mapped') &
+            (df_filtrado['LP'] != '')
+        ].copy()
         
         if df_filtrado.empty:
             return pd.DataFrame()
@@ -1164,46 +1204,19 @@ def criar_matriz_escadinha(df, ano_filtro=2025):
     if df is None or df.empty:
         return None, None
     
-    df_filtrado = df.copy()
-    
     try:
-        condicao1 = df_filtrado['Considerar?'].astype(str).str.strip().str.lower() == 'sim'
-        
-        if ano_filtro == 2024:
-            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2024|24', na=False)
-            condicao3 = df_filtrado['Mês geração lead'].astype(str).str.contains('2024|24', na=False)
-        else:
-            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2025|25', na=False)
-            condicao3 = df_filtrado['Mês geração lead'].astype(str).str.contains('2025|25', na=False)
-        
-        mask = condicao1 & condicao2 & condicao3
-        df_filtrado = df_filtrado[mask].copy()
+        df_filtrado = filtrar_receita_base(df, ano=ano_filtro, exigir_lead=True)
         
         if df_filtrado.empty:
             return None, None
-        
-        if ano_filtro == 2024:
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
-        df_filtrado = df_filtrado[
-            df_filtrado['Mês geração receita'].isin(ordem_meses) & 
-            df_filtrado['Mês geração lead'].isin(ordem_meses)
-        ].copy()
-        
-        if df_filtrado.empty:
-            return None, None
-        
-        df_filtrado['VL UNI'] = pd.to_numeric(df_filtrado['VL UNI'], errors='coerce').fillna(0)
+
+        ordem_meses = MESES_POR_ANO.get(ano_filtro, TODOS_MESES)
         
         matriz_receita = pd.DataFrame(0, index=ordem_meses, columns=ordem_meses, dtype=float)
         
         for _, row in df_filtrado.iterrows():
-            mes_receita = row['Mês geração receita']
-            mes_lead = row['Mês geração lead']
+            mes_receita = row.get('Mês geração receita')
+            mes_lead = row.get('Mês geração lead')
             valor = row['VL UNI']
             
             if mes_receita in ordem_meses and mes_lead in ordem_meses:
@@ -1223,46 +1236,25 @@ def criar_matriz_cac(df, ano_filtro=2025):
     if df is None or df.empty:
         return None, None
     
-    df_filtrado = df.copy()
-    
     try:
-        condicao1 = df_filtrado['Considerar?'] == 'Sim'
-        condicao2 = (df_filtrado['LP'].notna()) & (df_filtrado['LP'] != '00. Not Mapped') & (df_filtrado['LP'] != '')
-        
-        if ano_filtro == 2024:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2024|24', na=False)
-            condicao4 = df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)
-            investimento_mensal = INVESTIMENTO_MENSAL_2024
-        else:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2025|25', na=False)
-            condicao4 = df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)
-            investimento_mensal = INVESTIMENTO_MENSAL_2025
-        
-        mask = condicao1 & condicao2 & condicao3 & condicao4
-        df_filtrado = df_filtrado[mask].copy()
-        
-        if df_filtrado.empty:
-            return None, None
-        
-        if ano_filtro == 2024:
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
+        df_filtrado = filtrar_receita_base(df, ano=ano_filtro, exigir_lead=True)
         df_filtrado = df_filtrado[
-            df_filtrado['Mês geração receita'].isin(ordem_meses) & 
-            df_filtrado['Mês geração lead'].isin(ordem_meses)
+            (df_filtrado['LP'].notna()) &
+            (df_filtrado['LP'] != '00. Not Mapped') &
+            (df_filtrado['LP'] != '')
         ].copy()
         
         if df_filtrado.empty:
             return None, None
+
+        ordem_meses = MESES_POR_ANO.get(ano_filtro, TODOS_MESES)
         
+        investimento_mensal = INVESTIMENTO_MENSAL_2024 if ano_filtro == 2024 else INVESTIMENTO_MENSAL_2025
+
         matriz_tutores = pd.DataFrame(0, index=ordem_meses, columns=ordem_meses, dtype=float)
         
         tutores_por_combinacao = df_filtrado.groupby(['Mês geração receita', 'Mês geração lead'])['E-MAIL'].nunique()
-        
+       
         for (mes_receita, mes_lead), count in tutores_por_combinacao.items():
             if mes_receita in ordem_meses and mes_lead in ordem_meses:
                 matriz_tutores.loc[mes_receita, mes_lead] = count
@@ -1293,40 +1285,19 @@ def criar_matriz_ltv(df, ano_filtro=2025):
     if df is None or df.empty:
         return None, None
     
-    df_filtrado = df.copy()
-    
     try:
-        condicao1 = df_filtrado['Considerar?'] == 'Sim'
-        condicao2 = (df_filtrado['LP'].notna()) & (df_filtrado['LP'] != '00. Not Mapped') & (df_filtrado['LP'] != '')
-        
-        if ano_filtro == 2024:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2024|24', na=False)
-            condicao4 = df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)
-        else:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2025|25', na=False)
-            condicao4 = df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)
-        
-        mask = condicao1 & condicao2 & condicao3 & condicao4
-        df_filtrado = df_filtrado[mask].copy()
-        
-        if df_filtrado.empty:
-            return None, None
-        
-        if ano_filtro == 2024:
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
+        df_filtrado = filtrar_receita_base(df, ano=ano_filtro, exigir_lead=True)
         df_filtrado = df_filtrado[
-            df_filtrado['Mês geração receita'].isin(ordem_meses) & 
-            df_filtrado['Mês geração lead'].isin(ordem_meses)
+            (df_filtrado['LP'].notna()) &
+            (df_filtrado['LP'] != '00. Not Mapped') &
+            (df_filtrado['LP'] != '')
         ].copy()
-        
+
         if df_filtrado.empty:
             return None, None
-        
+
+        ordem_meses = MESES_POR_ANO.get(ano_filtro, TODOS_MESES)
+
         matriz_receita_bruta = pd.DataFrame(0, index=ordem_meses, columns=ordem_meses, dtype=float)
         matriz_tutores = pd.DataFrame(0, index=ordem_meses, columns=ordem_meses, dtype=float)
         
@@ -1507,22 +1478,9 @@ def calcular_receita_mensal(df, ano_filtro=2025):
     if df is None or df.empty:
         return pd.DataFrame(), pd.DataFrame()
     
-    df_filtrado = df.copy()
-    
     try:
-        condicao1 = df_filtrado['Considerar?'].astype(str).str.strip().str.lower() == 'sim'
-        if ano_filtro == 2024:
-            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2024|24', na=False)
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2025|25', na=False)
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
-        df_filtrado = df_filtrado[condicao1 & condicao2].copy()
-        df_filtrado['VL UNI'] = pd.to_numeric(df_filtrado['VL UNI'], errors='coerce').fillna(0)
-        df_filtrado['Mês geração receita'] = df_filtrado['Mês geração receita'].astype(str).str.strip()
+        df_filtrado = filtrar_receita_base(df, ano=ano_filtro, exigir_lead=True)
+        ordem_meses = MESES_POR_ANO.get(ano_filtro, TODOS_MESES)
         
         if not df_filtrado.empty:
             receita_mensal = df_filtrado.groupby('Mês geração receita')['VL UNI'].sum().reset_index()
