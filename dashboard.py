@@ -1167,17 +1167,16 @@ def criar_matriz_escadinha(df, ano_filtro=2025):
     df_filtrado = df.copy()
     
     try:
-        condicao1 = df_filtrado['Considerar?'] == 'Sim'
-        condicao2 = (df_filtrado['LP'].notna()) & (df_filtrado['LP'] != '00. Not Mapped') & (df_filtrado['LP'] != '')
+        condicao1 = df_filtrado['Considerar?'].astype(str).str.strip().str.lower() == 'sim'
         
         if ano_filtro == 2024:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2024|24', na=False)
-            condicao4 = df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)
+            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2024|24', na=False)
+            condicao3 = df_filtrado['Mês geração lead'].astype(str).str.contains('2024|24', na=False)
         else:
-            condicao3 = df_filtrado['Mês geração receita'].str.contains('2025|25', na=False)
-            condicao4 = df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)
+            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2025|25', na=False)
+            condicao3 = df_filtrado['Mês geração lead'].astype(str).str.contains('2025|25', na=False)
         
-        mask = condicao1 & condicao2 & condicao3 & condicao4
+        mask = condicao1 & condicao2 & condicao3
         df_filtrado = df_filtrado[mask].copy()
         
         if df_filtrado.empty:
@@ -1197,6 +1196,8 @@ def criar_matriz_escadinha(df, ano_filtro=2025):
         
         if df_filtrado.empty:
             return None, None
+        
+        df_filtrado['VL UNI'] = pd.to_numeric(df_filtrado['VL UNI'], errors='coerce').fillna(0)
         
         matriz_receita = pd.DataFrame(0, index=ordem_meses, columns=ordem_meses, dtype=float)
         
@@ -1509,34 +1510,27 @@ def calcular_receita_mensal(df, ano_filtro=2025):
     df_filtrado = df.copy()
     
     try:
-        condicao1 = df_filtrado['Mês geração receita'] == df_filtrado['Mês geração lead']
-        condicao2 = df_filtrado['Considerar?'] == 'Sim'
-        condicao3 = (df_filtrado['LP'].notna()) & (df_filtrado['LP'] != '00. Not Mapped') & (df_filtrado['LP'] != '')
-        
+        condicao1 = df_filtrado['Considerar?'].astype(str).str.strip().str.lower() == 'sim'
         if ano_filtro == 2024:
-            condicao4 = df_filtrado['Mês geração receita'].str.contains('2024|24', na=False)
+            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2024|24', na=False)
+            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
+                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
         else:
-            condicao4 = df_filtrado['Mês geração receita'].str.contains('2025|25', na=False)
+            condicao2 = df_filtrado['Mês geração receita'].astype(str).str.contains('2025|25', na=False)
+            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
+                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
         
-        mask = condicao1 & condicao2 & condicao3 & condicao4
-        df_filtrado = df_filtrado[mask].copy()
+        df_filtrado = df_filtrado[condicao1 & condicao2].copy()
+        df_filtrado['VL UNI'] = pd.to_numeric(df_filtrado['VL UNI'], errors='coerce').fillna(0)
+        df_filtrado['Mês geração receita'] = df_filtrado['Mês geração receita'].astype(str).str.strip()
         
-        if not df_filtrado.empty and 'Mês geração receita' in df_filtrado.columns and 'VL UNI' in df_filtrado.columns:
+        if not df_filtrado.empty:
             receita_mensal = df_filtrado.groupby('Mês geração receita')['VL UNI'].sum().reset_index()
             receita_mensal.columns = ['Mês', 'Receita Bruta']
             receita_mensal['Receita Líquida'] = receita_mensal['Receita Bruta'] * 0.56
-            
-            if ano_filtro == 2024:
-                ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                              'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-            else:
-                ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                              'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-            
             receita_mensal = receita_mensal[receita_mensal['Mês'].isin(ordem_meses)].copy()
             receita_mensal['Mês_Ordenado'] = pd.Categorical(receita_mensal['Mês'], categories=ordem_meses, ordered=True)
             receita_mensal = receita_mensal.sort_values('Mês_Ordenado').drop('Mês_Ordenado', axis=1)
-            
         else:
             receita_mensal = pd.DataFrame(columns=['Mês', 'Receita Bruta', 'Receita Líquida'])
         
