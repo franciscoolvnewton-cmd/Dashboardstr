@@ -785,8 +785,8 @@ def criar_heatmap_interativo(matriz, titulo):
         ))
 
         fig = configurar_heatmap(fig, titulo, "Valor")
-        fig.update_xaxes(title_text="Mês de Geração da Receita")
-        fig.update_yaxes(title_text="Mês de Geração do Lead")
+        fig.update_xaxes(title_text="Mês de Geração da Receita", type="category", categoryorder="array", categoryarray=x_labels)
+        fig.update_yaxes(title_text="Mês de Geração do Lead", type="category", categoryorder="array", categoryarray=y_labels)
 
         # Adicionar animação de entrada
         fig.update_layout(
@@ -1439,8 +1439,21 @@ def criar_heatmap_matriz(matriz, titulo, colorscale='Blues', width=500, height=4
 
     fig = configurar_heatmap(fig, titulo, "Valor")
     fig.update_layout(width=width, height=height)
-    fig.update_xaxes(title_text="Mês de Geração da Receita", tickangle=45, tickfont=dict(size=10, color=COLORS['text_primary']))
-    fig.update_yaxes(title_text="Mês de Geração do Lead", tickfont=dict(size=10, color=COLORS['text_primary']))
+    fig.update_xaxes(
+        title_text="Mês de Geração da Receita",
+        tickangle=45,
+        tickfont=dict(size=10, color=COLORS['text_primary']),
+        type="category",
+        categoryorder="array",
+        categoryarray=x_labels
+    )
+    fig.update_yaxes(
+        title_text="Mês de Geração do Lead",
+        tickfont=dict(size=10, color=COLORS['text_primary']),
+        type="category",
+        categoryorder="array",
+        categoryarray=y_labels
+    )
 
     return fig
 
@@ -1824,16 +1837,6 @@ def configurar_heatmap(fig, titulo="", colorbar_titulo="Valor"):
 
     return fig
 
-
-def render_plotly_chart(fig, key=None, use_container_width=True):
-    """Envolve gráficos Plotly em um card animado padronizado."""
-    if fig is None:
-        return
-
-    with st.container():
-        st.markdown('<div class="chart-card animate-fade-up">', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=use_container_width, key=key)
-        st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================
 # FUNÇÕES DE ANÁLISE DE LEADS ATUALIZADAS
@@ -2388,40 +2391,22 @@ def main_dashboard():
         box-shadow: 0 0 20px {COLORS['primary']}30;
     }}
 
-    .chart-card {{
-        background: linear-gradient(145deg, {COLORS['background']} 0%, {COLORS['paper_bg']} 100%);
-        border: 1px solid {COLORS['border']};
-        border-radius: 16px;
-        padding: 1.25rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 18px 35px rgba(15, 23, 42, 0.12);
-        position: relative;
-        overflow: hidden;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }}
-
-    .chart-card::before {{
-        content: "";
-        position: absolute;
-        inset: -60% 20% auto -40%;
-        height: 120%;
-        background: radial-gradient(circle at center, {COLORS['primary']}25, transparent 70%);
-        opacity: 0;
-        transition: opacity 0.4s ease;
-        pointer-events: none;
-    }}
-
-    .chart-card:hover {{
-        transform: translateY(-6px);
-        box-shadow: 0 24px 45px rgba(15, 23, 42, 0.18);
-    }}
-
-    .chart-card:hover::before {{
-        opacity: 1;
-    }}
-
     .animate-fade-up {{
         animation: fadeInUpSoft 0.75s ease both;
+    }}
+
+    div[data-testid="stPlotlyChart"] {{
+        background: {COLORS['paper_bg']};
+        border: 1px solid {COLORS['border']};
+        border-radius: 18px;
+        padding: 1.2rem 1.2rem 0.6rem;
+        margin-bottom: 1.7rem;
+        box-shadow: 0 20px 38px rgba(15, 23, 42, 0.12);
+        animation: fadeInUpSoft 0.7s ease both;
+    }}
+
+    div[data-testid="stPlotlyChart"] > div {{
+        padding-bottom: 0 !important;
     }}
     
     /* Gradientes modernos */
@@ -2742,7 +2727,7 @@ def main_dashboard():
                 )
                 
                 fig_receita = configurar_layout_clean(fig_receita, "Receita Mensal", show_labels=True)
-                render_plotly_chart(fig_receita)
+                st.plotly_chart(fig_receita, use_container_width=True)
             
             with col2:
                 # Gráfico de Novos Tutores COM RÓTULOS
@@ -2761,7 +2746,7 @@ def main_dashboard():
                 )
                 
                 fig_tutores = configurar_layout_clean(fig_tutores, "Novos Tutores por Mês", show_labels=True)
-                render_plotly_chart(fig_tutores)
+                st.plotly_chart(fig_tutores, use_container_width=True)
             
             # Análise de Cohort
             if not cohort_data.empty:
@@ -2820,23 +2805,23 @@ def main_dashboard():
             
             with col1:
                 if heatmap_receita:
-                    render_plotly_chart(heatmap_receita)
+                    st.plotly_chart(heatmap_receita, use_container_width=True)
                 else:
                     st.warning("Matriz de Receita não disponível")
                 
                 if heatmap_cac:
-                    render_plotly_chart(heatmap_cac)
+                    st.plotly_chart(heatmap_cac, use_container_width=True)
                 else:
                     st.warning("Matriz de CAC não disponível")
             
             with col2:
                 if heatmap_ltv:
-                    render_plotly_chart(heatmap_ltv)
+                    st.plotly_chart(heatmap_ltv, use_container_width=True)
                 else:
                     st.warning("Matriz de LTV não disponível")
                 
                 if heatmap_cac_ltv:
-                    render_plotly_chart(heatmap_cac_ltv)
+                    st.plotly_chart(heatmap_cac_ltv, use_container_width=True)
                 else:
                     st.warning("Matriz de CAC/LTV não disponível")
             
@@ -3045,7 +3030,7 @@ def main_dashboard():
                     textfont=dict(size=10, color=COLORS['text_primary'])
                 )
                 fig_consolidado_leads = configurar_layout_clean(fig_consolidado_leads, "Leads por Mês", show_labels=True)
-                render_plotly_chart(fig_consolidado_leads)
+                st.plotly_chart(fig_consolidado_leads, use_container_width=True)
             
             with col2:
                 fig_consolidado_roas = px.line(leads_consolidado, x='Mês', y='ROAS', title="ROAS por Mês", markers=True)
@@ -3056,7 +3041,7 @@ def main_dashboard():
                     textfont=dict(size=10, color=COLORS['text_primary'])
                 )
                 fig_consolidado_roas = configurar_layout_clean(fig_consolidado_roas, "ROAS por Mês", show_labels=True)
-                render_plotly_chart(fig_consolidado_roas)
+                st.plotly_chart(fig_consolidado_roas, use_container_width=True)
         else:
             st.warning("Não há dados consolidados disponíveis para o período selecionado")
         
@@ -3101,7 +3086,7 @@ def main_dashboard():
                     textfont=dict(size=10, color=COLORS['text_primary'])
                 )
                 fig_leads_lp = configurar_layout_clean(fig_leads_lp, "Top 10 LPs por Volume de Leads", show_labels=True)
-                render_plotly_chart(fig_leads_lp)
+                st.plotly_chart(fig_leads_lp, use_container_width=True)
             with col2:
                 fig_receita_lp = px.bar(leads_por_lp.head(10), x='LP', y='Receita', title="Top 10 LPs por Receita")
                 fig_receita_lp.update_traces(
@@ -3110,7 +3095,7 @@ def main_dashboard():
                     textfont=dict(size=10, color=COLORS['text_primary'])
                 )
                 fig_receita_lp = configurar_layout_clean(fig_receita_lp, "Top 10 LPs por Receita", show_labels=True)
-                render_plotly_chart(fig_receita_lp)
+                st.plotly_chart(fig_receita_lp, use_container_width=True)
         else:
             st.warning("Não há dados por LP disponíveis para o período selecionado")
         
@@ -3162,7 +3147,7 @@ def main_dashboard():
                         textfont=dict(size=10, color=COLORS['text_primary'])
                     )
                     fig_evolucao_leads = configurar_layout_clean(fig_evolucao_leads, f"Evolução de Leads - {lp_selecionada}", show_labels=True)
-                    render_plotly_chart(fig_evolucao_leads)
+                    st.plotly_chart(fig_evolucao_leads, use_container_width=True)
                 with col2:
                     fig_evolucao_receita = px.line(dados_lp, x='Mês', y='Receita', title=f"Evolução de Receita - {lp_selecionada}", markers=True)
                     fig_evolucao_receita.update_traces(
@@ -3172,7 +3157,7 @@ def main_dashboard():
                         textfont=dict(size=10, color=COLORS['text_primary'])
                     )
                     fig_evolucao_receita = configurar_layout_clean(fig_evolucao_receita, f"Evolução de Receita - {lp_selecionada}", show_labels=True)
-                    render_plotly_chart(fig_evolucao_receita)
+                    st.plotly_chart(fig_evolucao_receita, use_container_width=True)
         else:
             st.warning("Não há dados mensais por LP disponíveis para o período selecionado")
     
@@ -3223,7 +3208,7 @@ def main_dashboard():
                 ))
                 
                 fig_previsao = configurar_layout_clean(fig_previsao, "Previsão de Receita - Próximos 6 Meses", show_labels=True)
-                render_plotly_chart(fig_previsao)
+                st.plotly_chart(fig_previsao, use_container_width=True)
             
             with col2:
                 st.metric("Precisão Média dos Modelos", 
@@ -3284,7 +3269,7 @@ def main_dashboard():
                 ))
             
             fig_tendencia = configurar_layout_clean(fig_tendencia, "Análise de Tendência e Sazonalidade", show_labels=True)
-            render_plotly_chart(fig_tendencia)
+            st.plotly_chart(fig_tendencia, use_container_width=True)
         
         # INSIGHTS ESTRATÉGICOS
         st.subheader("Insights Estratégicos")
@@ -3346,7 +3331,7 @@ def main_dashboard():
             st.subheader("Análise de Sazonalidade e Tendência")
             sazonalidade_chart = criar_analise_sazonalidade_grafico(analise_sazonal_data)
             if sazonalidade_chart:
-                render_plotly_chart(sazonalidade_chart)
+                st.plotly_chart(sazonalidade_chart, use_container_width=True)
                 
                 # Insights da sazonalidade
                 col1, col2, col3 = st.columns(3)
@@ -3386,7 +3371,7 @@ def main_dashboard():
                 title="Relação Investimento vs Receita",
                 template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark'
             )
-            render_plotly_chart(fig_correlacao)
+            st.plotly_chart(fig_correlacao, use_container_width=True)
         
         # ANÁLISE DE CLUSTERS
         if analise_clusters and analise_clusters_data:
@@ -3407,7 +3392,7 @@ def main_dashboard():
                 title="Segmentação por Clusters - Análise 3D",
                 template='plotly_white' if TEMA_ATUAL == 'light' else 'plotly_dark'
             )
-            render_plotly_chart(fig_clusters)
+            st.plotly_chart(fig_clusters, use_container_width=True)
             
             # Interpretação dos clusters
             st.subheader("Interpretação dos Clusters")
@@ -3462,7 +3447,7 @@ def main_dashboard():
             st.subheader("Análise Comparativa de LPs - Radar")
             radar_chart = criar_grafico_radar_performance(metricas_avancadas_lp)
             if radar_chart:
-                render_plotly_chart(radar_chart)
+                st.plotly_chart(radar_chart, use_container_width=True)
 
 # =============================================
 # APLICAÇÃO PRINCIPAL
