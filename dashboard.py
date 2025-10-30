@@ -779,21 +779,13 @@ def criar_heatmap_interativo(matriz, titulo):
             texttemplate="%{text}",
             textfont={"size": 10, "color": "white"}
         ))
-        
+
+        fig = configurar_heatmap(fig, titulo, "Valor")
+        fig.update_xaxes(title_text="Mês de Geração do Lead")
+        fig.update_yaxes(title_text="Mês de Geração da Receita")
+
         # Adicionar animação de entrada
         fig.update_layout(
-            title=dict(
-                text=titulo,
-                font=dict(size=16, color=COLORS['text_primary']),
-                x=0.5
-            ),
-            xaxis_title="Mês de Geração do Lead",
-            yaxis_title="Mês de Geração da Receita",
-            height=500,
-            font=dict(family="Arial, sans-serif", size=12, color=COLORS['text_primary']),
-            plot_bgcolor=COLORS['plot_bg'],
-            paper_bgcolor=COLORS['paper_bg'],
-            # Configurações de animação
             updatemenus=[{
                 "buttons": [
                     {
@@ -804,16 +796,16 @@ def criar_heatmap_interativo(matriz, titulo):
                     }
                 ],
                 "direction": "left",
-                "pad": {"r": 10, "t": 87},
+                "pad": {"r": 10, "t": 60},
                 "showactive": False,
                 "type": "buttons",
-                "x": 0.1,
-                "xanchor": "right",
-                "y": 0,
+                "x": 0.05,
+                "xanchor": "left",
+                "y": -0.1,
                 "yanchor": "top"
             }]
         )
-        
+
         return fig
     except Exception as e:
         st.error(f"Erro ao criar heatmap interativo: {e}")
@@ -1440,27 +1432,11 @@ def criar_heatmap_matriz(matriz, titulo, colorscale='Blues', width=500, height=4
             fillcolor="rgba(0,0,0,0)"
         )
     
-    fig.update_layout(
-        title=dict(
-            text=titulo,
-            font=dict(size=14, color=COLORS['text_primary'])
-        ),
-        xaxis_title="Mês de Geração do Lead",
-        yaxis_title="Mês de Geração da Receita",
-        width=width,
-        height=height,
-        font=dict(family="Arial, sans-serif", size=10, color=COLORS['text_primary']),
-        xaxis=dict(
-            tickangle=45,
-            tickfont=dict(size=8, color=COLORS['text_primary'])
-        ),
-        yaxis=dict(
-            tickfont=dict(size=8, color=COLORS['text_primary'])
-        ),
-        plot_bgcolor=COLORS['plot_bg'],
-        paper_bgcolor=COLORS['paper_bg']
-    )
-    
+    fig = configurar_heatmap(fig, titulo, "Valor")
+    fig.update_layout(width=width, height=height)
+    fig.update_xaxes(title_text="Mês de Geração do Lead", tickangle=45, tickfont=dict(size=10, color=COLORS['text_primary']))
+    fig.update_yaxes(title_text="Mês de Geração da Receita", tickfont=dict(size=10, color=COLORS['text_primary']))
+
     return fig
 
 def calcular_estatisticas_matriz(matriz, tipo="Receita"):
@@ -1647,6 +1623,21 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
     """
     Configura layout dos gráficos COM RÓTULOS DE DADOS
     """
+    eixo_base = dict(
+        title=dict(font=dict(size=16, color=COLORS['text_primary']), standoff=20),
+        tickfont=dict(size=14, color=COLORS['text_primary']),
+        gridcolor=COLORS['light_gray'],
+        griddash="dot",
+        zeroline=False,
+        showline=True,
+        linecolor=COLORS['border'],
+        linewidth=1,
+        mirror=True,
+        ticks="outside",
+        ticklen=6,
+        tickcolor=COLORS['border']
+    )
+
     if fonte_maior:
         # Configuração com fontes maiores para gráficos de LP
         fig.update_layout(
@@ -1656,51 +1647,31 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                 font=dict(size=24, color=COLORS['text_primary'], family="Arial, sans-serif"),
                 x=0.5,
                 xanchor='center',
-                y=0.95
+                y=0.95,
+                pad=dict(b=20)
             ),
-            xaxis=dict(
-                title=dict(
-                    font=dict(size=18, color=COLORS['text_primary']),
-                    standoff=20
-                ),
-                tickfont=dict(size=16, color=COLORS['text_primary']),
-                gridcolor=COLORS['light_gray'],
-                linecolor=COLORS['border'],
-                showgrid=True,
-                zeroline=False
-            ),
-            yaxis=dict(
-                title=dict(
-                    font=dict(size=18, color=COLORS['text_primary']),
-                    standoff=20
-                ),
-                tickfont=dict(size=16, color=COLORS['text_primary']),
-                gridcolor=COLORS['light_gray'],
-                linecolor=COLORS['border'],
-                showgrid=True,
-                zeroline=False,
-                tickformat=",."
-            ),
+            xaxis={**eixo_base, "tickfont": dict(size=16, color=COLORS['text_primary'])},
+            yaxis={**eixo_base, "tickfont": dict(size=16, color=COLORS['text_primary']), "tickformat": ",."},
             legend=dict(
                 font=dict(size=16, color=COLORS['text_primary']),
-                bgcolor=COLORS['background'],
-                bordercolor=COLORS['border'],
-                borderwidth=1,
                 orientation="h",
-                yanchor="bottom",
-                y=-0.3,
+                yanchor="top",
+                y=1.02,
                 xanchor="center",
-                x=0.5
+                x=0.5,
+                bgcolor="rgba(0,0,0,0)",
+                itemwidth=60
             ),
             plot_bgcolor=COLORS['plot_bg'],
             paper_bgcolor=COLORS['paper_bg'],
-            margin=dict(l=60, r=60, t=80, b=80),
+            margin=dict(l=50, r=30, t=90, b=60),
             hoverlabel=dict(
                 bgcolor=COLORS['background'],
                 bordercolor=COLORS['border'],
                 font_size=16,
                 font_family="Arial"
             ),
+            hovermode='x unified',
             width=width,
             height=height
         )
@@ -1713,55 +1684,74 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                 font=dict(size=20, color=COLORS['text_primary'], family="Arial, sans-serif"),
                 x=0.5,
                 xanchor='center',
-                y=0.95
+                y=0.95,
+                pad=dict(b=20)
             ),
-            xaxis=dict(
-                title=dict(
-                    font=dict(size=16, color=COLORS['text_primary']),
-                    standoff=20
-                ),
-                tickfont=dict(size=14, color=COLORS['text_primary']),
-                gridcolor=COLORS['light_gray'],
-                linecolor=COLORS['border'],
-                showgrid=True,
-                zeroline=False
-            ),
-            yaxis=dict(
-                title=dict(
-                    font=dict(size=16, color=COLORS['text_primary']),
-                    standoff=20
-                ),
-                tickfont=dict(size=14, color=COLORS['text_primary']),
-                gridcolor=COLORS['light_gray'],
-                linecolor=COLORS['border'],
-                showgrid=True,
-                zeroline=False,
-                tickformat=",."
-            ),
+            xaxis=eixo_base,
+            yaxis={**eixo_base, "tickformat": ",."},
             legend=dict(
                 font=dict(size=14, color=COLORS['text_primary']),
-                bgcolor=COLORS['background'],
-                bordercolor=COLORS['border'],
-                borderwidth=1,
                 orientation="h",
-                yanchor="bottom",
-                y=-0.3,
+                yanchor="top",
+                y=1.02,
                 xanchor="center",
-                x=0.5
+                x=0.5,
+                bgcolor="rgba(0,0,0,0)",
+                itemwidth=60
             ),
             plot_bgcolor=COLORS['plot_bg'],
             paper_bgcolor=COLORS['paper_bg'],
-            margin=dict(l=60, r=60, t=80, b=80),
+            margin=dict(l=45, r=30, t=80, b=55),
             hoverlabel=dict(
                 bgcolor=COLORS['background'],
                 bordercolor=COLORS['border'],
                 font_size=14,
                 font_family="Arial"
             ),
+            hovermode='x unified',
             width=width,
             height=height
         )
-    
+
+    # Ajustes finos dos eixos
+    fig.update_xaxes(showgrid=True, gridcolor=COLORS['light_gray'], griddash="dot")
+    fig.update_yaxes(showgrid=True, gridcolor=COLORS['light_gray'], griddash="dot")
+
+    # Estilizar traços conforme o tipo
+    try:
+        for trace in fig.data:
+            if isinstance(trace, go.Bar):
+                marker_color = trace.marker.color if hasattr(trace, "marker") and getattr(trace.marker, "color", None) is not None else COLORS['primary']
+                marker_conf = dict(
+                    color=marker_color,
+                    opacity=0.9,
+                    line=dict(width=0)
+                )
+                if hasattr(trace.marker, "pattern") and getattr(trace.marker.pattern, "shape", None):
+                    marker_conf["pattern"] = dict(shape=trace.marker.pattern.shape)
+                trace.update(
+                    marker=marker_conf,
+                    hovertemplate="<b>%{x}</b><br>Valor: %{y:,.0f}<extra></extra>"
+                )
+            elif isinstance(trace, go.Scatter):
+                mode = trace.mode or ""
+                if "lines" in mode and "markers" not in mode:
+                    trace.mode = mode + "+markers"
+                trace.update(
+                    line=dict(width=max(trace.line.width if trace.line and trace.line.width else 2, 3)),
+                    marker=dict(
+                        size=8,
+                        line=dict(width=1.5, color=COLORS['paper_bg']),
+                        symbol="circle",
+                        opacity=0.95
+                    ),
+                    hovertemplate="<b>%{x}</b><br>Valor: %{y:,.0f}<extra></extra>"
+                )
+            elif isinstance(trace, go.Funnel):
+                trace.update(hovertemplate="<b>%{label}</b><br>Valor: %{value:,.0f}<extra></extra>")
+    except Exception:
+        pass
+
     # Adicionar rótulos de dados se solicitado
     if show_labels:
         try:
@@ -1772,7 +1762,61 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
             )
         except:
             pass
-    
+
+    return fig
+
+
+def configurar_heatmap(fig, titulo="", colorbar_titulo="Valor"):
+    """Aplica tema consistente aos heatmaps."""
+    if fig is None:
+        return None
+
+    for trace in fig.data:
+        if isinstance(trace, go.Heatmap):
+            trace.update(
+                colorscale='Tealgrn',
+                hovertemplate="<b>%{y}</b><br><b>%{x}</b><br>Valor: %{z:,.0f}<extra></extra>",
+                colorbar=dict(
+                    title=dict(text=colorbar_titulo, font=dict(size=12, color=COLORS['text_primary'])),
+                    tickformat=",.",
+                    thickness=14,
+                    len=0.65,
+                    bgcolor=COLORS['paper_bg'],
+                    outlinewidth=0
+                )
+            )
+
+    fig.update_layout(
+        title=dict(
+            text=titulo,
+            font=dict(size=20, color=COLORS['text_primary'], family="Arial, sans-serif"),
+            x=0.5,
+            xanchor='center'
+        ),
+        font=dict(family="Arial, sans-serif", size=12, color=COLORS['text_primary']),
+        plot_bgcolor=COLORS['plot_bg'],
+        paper_bgcolor=COLORS['paper_bg'],
+        margin=dict(l=60, r=40, t=80, b=60),
+        hoverlabel=dict(
+            bgcolor=COLORS['background'],
+            bordercolor=COLORS['border'],
+            font_size=13,
+            font_family="Arial"
+        )
+    )
+
+    fig.update_xaxes(
+        showgrid=False,
+        tickfont=dict(size=11, color=COLORS['text_primary']),
+        tickangle=0,
+        title=dict(font=dict(size=12, color=COLORS['text_primary']))
+    )
+    fig.update_yaxes(
+        showgrid=False,
+        tickfont=dict(size=11, color=COLORS['text_primary']),
+        title=dict(font=dict(size=12, color=COLORS['text_primary']))
+    )
+
     return fig
 
 # =============================================
