@@ -7,6 +7,7 @@ import base64
 from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
+from contextlib import contextmanager
 
 # Importações das bibliotecas de análise
 import plotly.express as px
@@ -1069,107 +1070,260 @@ def login_screen():
 
     st.markdown(f"""
     <style>
-        /* Remove menus e cabeçalho do Streamlit */
-        #MainMenu, footer, header {{
-            visibility: hidden;
-        }}
+    /* Root Layout ---------------------------------------------------- */
+    .stApp {{
+        background: linear-gradient(180deg, {COLORS['background']} 0%, {COLORS['light_gray']}33 100%) !important;
+    }}
 
-        /* Fundo e centralização flexível */
-        .stApp {{
-            background-color: {BACKGROUND_COLOR};
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', sans-serif;
-        }}
+    .main .block-container {{
+        padding: 2.8rem 3.6rem;
+        max-width: 1380px;
+        margin: 0 auto;
+        background: transparent !important;
+    }}
 
-        /* Wrapper de login centralizado */
-        .login-wrapper {{
-            text-align: center;
-            width: 100%;
-            max-width: 320px;
-            padding: 1rem;
-            box-sizing: border-box;
-            animation: fadeIn 0.8s ease-in-out;
-        }}
+    /* Sidebar -------------------------------------------------------- */
+    section[data-testid="stSidebar"] > div {{
+        background: {COLORS['sidebar_bg']} !important;
+        border-right: 1px solid {COLORS['border']}26;
+        box-shadow: 0 22px 46px rgba(15, 23, 42, 0.08);
+    }}
 
-        @keyframes fadeIn {{
-            from {{
-                opacity: 0;
-                transform: translateY(-20px);
-            }}
-            to {{
-                opacity: 1;
-                transform: translateY(0);
-            }}
-        }}
+    section[data-testid="stSidebar"] .stButton>button {{
+        border-radius: 14px;
+        border: none;
+        font-weight: 600;
+        background: linear-gradient(130deg, {COLORS['primary']}, {COLORS['primary_light']}) !important;
+        color: {COLORS['white']} !important;
+        box-shadow: 0 12px 24px {COLORS['primary']}33;
+    }}
 
-        /* Inputs */
-        .stTextInput > div {{
-            width: 100%;
-            margin-bottom: 1rem;
-        }}
+    section[data-testid="stSidebar"] .stSelectbox>div>div,
+    section[data-testid="stSidebar"] .stTextInput>div>div>input {{
+        border-radius: 12px;
+        border: 1px solid {COLORS['border']}80 !important;
+        background: {COLORS['background']} !important;
+        color: {COLORS['text_primary']} !important;
+    }}
 
-        .stTextInput>div>div>input {{
-            width: 100%;
-            border-radius: 6px;
-            border: 1px solid {BORDER_COLOR};
-            padding: 8px 12px;
-            font-size: 14px;
-            color: {TEXT_COLOR};
-            background-color: {BACKGROUND_COLOR};
-            box-sizing: border-box;
-            transition: all 0.3s ease;
-        }}
+    section[data-testid="stSidebar"] * {{
+        color: {COLORS['text_primary']} !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+    }}
 
-        .stTextInput>div>div>input:focus {{
-            border-color: {BUTTON_COLOR};
-            box-shadow: 0 0 0 2px {BUTTON_COLOR}20;
-            outline: none;
-        }}
+    /* Typography ----------------------------------------------------- */
+    h1, h2, h3 {{
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        font-weight: 700;
+        color: {COLORS['text_primary']} !important;
+        margin-bottom: 1rem;
+    }}
 
-        .stTextInput label {{
-            font-weight: 500;
-            color: {TEXT_COLOR};
-            display: block;
-            text-align: left;
-            margin-bottom: 4px;
-            font-size: 14px;
-        }}
+    p, li, span, div {{
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        color: {COLORS['text_primary']}dd !important;
+    }}
 
-        /* Botão */
-        .stButton > button {{
-            width: 100%;
-            background-color: {BUTTON_COLOR};
-            color: {COLORS['white']};
-            border-radius: 6px;
-            padding: 10px 0;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: 0.3s;
-        }}
+    /* Metrics -------------------------------------------------------- */
+    .stMetric {{
+        background: {COLORS['paper_bg']};
+        border: 1px solid {COLORS['border']}40;
+        border-radius: 18px;
+        padding: 1.25rem 1.4rem;
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }}
 
-        .stButton>button:hover {{
-            background-color: {BUTTON_HOVER};
-        }}
+    .stMetric:hover {{
+        transform: translateY(-4px);
+        box-shadow: 0 22px 44px rgba(15, 23, 42, 0.12);
+    }}
 
-        /* Subtítulo */
-        .login-wrapper p {{
-            color: {GRAY_COLOR};
-            margin-bottom: 1.5rem;
-            font-size: 14px;
-        }}
-    </style>
-    """, unsafe_allow_html=True)
+    .stMetric label {{
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.72rem !important;
+        color: {COLORS['text_secondary']} !important;
+    }}
 
+    .stMetric div {{
+        font-size: 1.55rem !important;
+        font-weight: 700 !important;
+        color: {COLORS['text_primary']} !important;
+    }}
+
+    /* Tabs ----------------------------------------------------------- */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 12px;
+        background: rgba(255,255,255,0.45);
+        padding: 10px;
+        border-radius: 18px;
+        border: 1px solid {COLORS['border']}26;
+        backdrop-filter: blur(10px);
+        margin-bottom: 2.5rem;
+    }}
+
+    .stTabs [data-baseweb="tab"] {{
+        border-radius: 12px;
+        padding: 14px 28px;
+        font-size: 15px;
+        font-weight: 500;
+        color: {COLORS['text_secondary']};
+        transition: all 0.25s ease;
+    }}
+
+    .stTabs [data-baseweb="tab"]:hover {{
+        background: {COLORS['primary']}18;
+        color: {COLORS['primary']};
+    }}
+
+    .stTabs [aria-selected="true"] {{
+        background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
+        color: {COLORS['white']};
+        box-shadow: 0 16px 32px {COLORS['primary']}33;
+    }}
+
+    /* Section wrappers ----------------------------------------------- */
+    .section-header {{
+        background: {COLORS['paper_bg']};
+        border: 1px solid {COLORS['border']}30;
+        border-radius: 22px;
+        padding: 1.6rem 1.8rem;
+        box-shadow: 0 24px 44px rgba(15, 23, 42, 0.08);
+        margin: 2.3rem 0 1.3rem;
+    }}
+
+    .section-title {{
+        font-size: 1.65rem !important;
+        color: {COLORS['text_primary']} !important;
+        margin: 0 !important;
+    }}
+
+    .section-subtitle {{
+        margin-top: 0.4rem !important;
+        color: {COLORS['text_secondary']} !important;
+        font-weight: 400 !important;
+    }}
+
+    .section-card {{
+        background: {COLORS['paper_bg']};
+        border: 1px solid {COLORS['border']}30;
+        border-radius: 22px;
+        padding: 1.8rem 2rem;
+        box-shadow: 0 26px 48px rgba(15, 23, 42, 0.07);
+        margin-bottom: 2.2rem;
+    }}
+
+    .info-box {{
+        background: {COLORS['info_light']}12;
+        border: 1px solid {COLORS['info_light']}40;
+        border-radius: 18px;
+        padding: 1.2rem 1.4rem;
+        margin: 1.2rem 0;
+    }}
+
+    .matriz-stats {{
+        background: {COLORS['paper_bg']};
+        border: 1px solid {COLORS['border']}26;
+        border-radius: 20px;
+        padding: 1.4rem 1.6rem;
+        box-shadow: 0 24px 40px rgba(15, 23, 42, 0.06);
+        margin: 1.4rem 0;
+    }}
+
+    .metricas-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.6rem;
+        margin: 1.8rem 0;
+    }}
+
+    .metrica-card {{
+        background: {COLORS['paper_bg']};
+        border: 1px solid {COLORS['border']}26;
+        border-radius: 18px;
+        padding: 1.2rem 1.4rem;
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }}
+
+    .metrica-card:hover {{
+        transform: translateY(-3px);
+        box-shadow: 0 22px 42px rgba(15, 23, 42, 0.12);
+    }}
+
+    .metrica-titulo {{
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: {COLORS['text_secondary']};
+        margin-bottom: 0.6rem;
+    }}
+
+    .metrica-valor {{
+        font-size: 1.55rem;
+        font-weight: 700;
+        color: {COLORS['text_primary']};
+    }}
+
+    .heatmap-grid {{
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1.8rem;
+        margin: 1.8rem 0;
+    }}
+
+    /* Charts --------------------------------------------------------- */
+    .chart-shell {{
+        background: {COLORS['paper_bg']};
+        border: 1px solid {COLORS['border']}26;
+        border-radius: 22px;
+        padding: 1.5rem 1.6rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 24px 42px rgba(15, 23, 42, 0.08);
+        transition: transform 0.28s ease, box-shadow 0.28s ease;
+    }}
+
+    .chart-shell:hover {{
+        transform: translateY(-4px);
+        box-shadow: 0 30px 50px rgba(15, 23, 42, 0.12);
+    }}
+
+    .chart-shell div[data-testid="stPlotlyChart"] {{
+        background: transparent !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }}
+
+    /* Tables -------------------------------------------------------- */
+    .dataframe th {{
+        background: {COLORS['primary']};
+        color: {COLORS['white']};
+        font-weight: 600;
+        padding: 12px 14px;
+    }}
+
+    .dataframe td {{
+        padding: 11px 14px;
+        border-bottom: 1px solid {COLORS['border']}30;
+        color: {COLORS['text_primary']};
+        background: {COLORS['paper_bg']};
+    }}
+
+    .dataframe tr:hover {{
+        background: {COLORS['light_gray']}60;
+    }}
+
+    /* Scrollbar ----------------------------------------------------- */
+    ::-webkit-scrollbar {{ width: 8px; }}
+    ::-webkit-scrollbar-track {{ background: {COLORS['light_gray']}55; border-radius: 6px; }}
+    ::-webkit-scrollbar-thumb {{ background: {COLORS['primary']}88; border-radius: 6px; }}
+    ::-webkit-scrollbar-thumb:hover {{ background: {COLORS['primary']}; }}
+        </style>
+        """, unsafe_allow_html=True)
     # ---------- LAYOUT ----------
     st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
-
     # Logo
     login_logo = load_login_logo()
     if login_logo:
@@ -1797,6 +1951,16 @@ def render_plotly_chart(fig, key=None, use_container_width=True):
     st.markdown('<div class="chart-shell animate-fade-up">', unsafe_allow_html=True)
     st.plotly_chart(fig, use_container_width=use_container_width, key=key)
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+@contextmanager
+def section_card():
+    """Contexto para agrupar blocos em um cartão consistente."""
+    st.markdown('<div class="section-card animate-fade-up">', unsafe_allow_html=True)
+    try:
+        yield
+    finally:
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =============================================
@@ -2578,161 +2742,161 @@ def main_dashboard():
         
         if not receita_mensal.empty:
             # Resumo das outras abas
-            st.subheader("Resumo das Análises")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.markdown("**Matrizes Escadinha**")
-                if estatisticas_receita:
-                    st.metric("Eficiência Temporal", f"{estatisticas_receita['eficiencia']:.1%}")
-            
-            with col2:
-                st.markdown("**LP e Leads**")
-                if not leads_por_lp.empty:
-                    top_lp = leads_por_lp.iloc[0]
-                    st.metric("Top LP", top_lp['LP'])
-            
-            with col3:
-                st.markdown("**Análise Preditiva**")
-                if df_previsoes is not None:
-                    previsao_media = df_previsoes['Receita Bruta Prevista'].mean()
-                    st.metric("Previsão Média", f"R$ {previsao_media:,.0f}")
-            
-            with col4:
-                st.markdown("**Análises Avançadas**")
-                if kpis_avancados:
-                    st.metric("ROI Médio", f"{kpis_avancados.get('roi_medio', 0):.1f}%")
+            with section_card():
+                st.subheader("Resumo das Análises")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.markdown("**Matrizes Escadinha**")
+                    if estatisticas_receita:
+                        st.metric("Eficiência Temporal", f"{estatisticas_receita['eficiencia']:.1%}")
+                
+                with col2:
+                    st.markdown("**LP e Leads**")
+                    if not leads_por_lp.empty:
+                        top_lp = leads_por_lp.iloc[0]
+                        st.metric("Top LP", top_lp['LP'])
+                
+                with col3:
+                    st.markdown("**Análise Preditiva**")
+                    if df_previsoes is not None:
+                        previsao_media = df_previsoes['Receita Bruta Prevista'].mean()
+                        st.metric("Previsão Média", f"R$ {previsao_media:,.0f}")
+                
+                with col4:
+                    st.markdown("**Análises Avançadas**")
+                    if kpis_avancados:
+                        st.metric("ROI Médio", f"{kpis_avancados.get('roi_medio', 0):.1f}%")
 
-            # KPIs Avançados - APENAS MÉTRICAS PRINCIPAIS
-            st.subheader("Métricas Principais")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                receita_total_bruta = receita_mensal['Receita Bruta'].sum()
-                st.metric(
-                    "Receita Bruta Total", 
-                    f"R$ {receita_total_bruta:,.0f}"
-                )
-            
-            with col2:
-                receita_total_liquida = receita_mensal['Receita Líquida'].sum()
-                st.metric(
-                    "Receita Líquida Total", 
-                    f"R$ {receita_total_liquida:,.0f}"
-                )
-            
-            with col3:
-                total_tutores = novos_tutores_mes['Novos Tutores'].sum()
-                st.metric(
-                    "Total Novos Tutores", 
-                    f"{total_tutores:,}"
-                )
-            
-            with col4:
-                if not cohort_data.empty:
-                    cac_medio = cohort_data[cohort_data['CAC'] > 0]['CAC'].mean()
-                    st.metric(
-                        "CAC Médio", 
-                        f"R$ {cac_medio:,.0f}"
-                    )
-            
-            # Mais KPIs
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                if not cohort_data.empty:
-                    ltv_medio = cohort_data[cohort_data['LTV'] > 0]['LTV'].mean()
-                    st.metric(
-                        "LTV Médio", 
-                        f"R$ {ltv_medio:,.0f}"
-                    )
-            
-            with col2:
-                if not cohort_data.empty:
-                    roi_medio = cohort_data[cohort_data['ROI (%)'] != 0]['ROI (%)'].mean()
-                    st.metric(
-                        "ROI Médio", 
-                        f"{roi_medio:.1f}%"
-                    )
-            
-            with col3:
-                if kpis_avancados and kpis_avancados.get('crescimento_receita', 0) != 0:
-                    st.metric(
-                        "Crescimento Receita", 
-                        f"{kpis_avancados.get('crescimento_receita', 0):.1f}%"
-                    )
-            
-            with col4:
-                if kpis_avancados:
-                    st.metric(
-                        "Volatilidade", 
-                        f"{kpis_avancados.get('volatilidade_receita', 0):.1f}%"
-                    )
-            
-            # Gráficos Principais COM RÓTULOS
-            st.subheader("Evolução Mensal")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Gráfico de Receita Mensal COM RÓTULOS
-                fig_receita = px.line(
-                    receita_mensal, 
-                    x='Mês', 
-                    y=['Receita Bruta', 'Receita Líquida'],
-                    title="Receita Mensal",
-                    color_discrete_map={
-                        'Receita Bruta': COLORS['primary'],
-                        'Receita Líquida': COLORS['secondary']
-                    }
-                )
+            with section_card():
+                st.subheader("Métricas Principais")
                 
-                fig_receita.update_traces(
-                    mode='lines+markers+text',
-                    texttemplate='%{y:,.0f}',
-                    textposition='top center',
-                    textfont=dict(size=10, color=COLORS['text_primary'])
-                )
+                col1, col2, col3, col4 = st.columns(4)
                 
-                fig_receita = configurar_layout_clean(fig_receita, "Receita Mensal", show_labels=True)
-                render_plotly_chart(fig_receita)
+                with col1:
+                    receita_total_bruta = receita_mensal['Receita Bruta'].sum()
+                    st.metric(
+                        "Receita Bruta Total", 
+                        f"R$ {receita_total_bruta:,.0f}"
+                    )
+                
+                with col2:
+                    receita_total_liquida = receita_mensal['Receita Líquida'].sum()
+                    st.metric(
+                        "Receita Líquida Total", 
+                        f"R$ {receita_total_liquida:,.0f}"
+                    )
+                
+                with col3:
+                    total_tutores = novos_tutores_mes['Novos Tutores'].sum()
+                    st.metric(
+                        "Total Novos Tutores", 
+                        f"{total_tutores:,}"
+                    )
+                
+                with col4:
+                    if not cohort_data.empty:
+                        cac_medio = cohort_data[cohort_data['CAC'] > 0]['CAC'].mean()
+                        st.metric(
+                            "CAC Médio", 
+                            f"R$ {cac_medio:,.0f}"
+                        )
+
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    if not cohort_data.empty:
+                        ltv_medio = cohort_data[cohort_data['LTV'] > 0]['LTV'].mean()
+                        st.metric(
+                            "LTV Médio", 
+                            f"R$ {ltv_medio:,.0f}"
+                        )
+                
+                with col2:
+                    if not cohort_data.empty:
+                        roi_medio = cohort_data[cohort_data['ROI (%)'] != 0]['ROI (%)'].mean()
+                        st.metric(
+                            "ROI Médio", 
+                            f"{roi_medio:.1f}%"
+                        )
+                
+                with col3:
+                    if kpis_avancados and kpis_avancados.get('crescimento_receita', 0) != 0:
+                        st.metric(
+                            "Crescimento Receita", 
+                            f"{kpis_avancados.get('crescimento_receita', 0):.1f}%"
+                        )
+                
+                with col4:
+                    if kpis_avancados:
+                        st.metric(
+                            "Volatilidade", 
+                            f"{kpis_avancados.get('volatilidade_receita', 0):.1f}%"
+                        )
             
-            with col2:
-                # Gráfico de Novos Tutores COM RÓTULOS
-                fig_tutores = px.bar(
-                    novos_tutores_mes,
-                    x='Mês',
-                    y='Novos Tutores',
-                    title="Novos Tutores por Mês",
-                    color_discrete_sequence=[COLORS['info']]
-                )
+            with section_card():
+                st.subheader("Evolução Mensal")
                 
-                fig_tutores.update_traces(
-                    texttemplate='%{y}',
-                    textposition='outside',
-                    textfont=dict(size=10, color=COLORS['text_primary'])
-                )
+                col1, col2 = st.columns(2)
                 
-                fig_tutores = configurar_layout_clean(fig_tutores, "Novos Tutores por Mês", show_labels=True)
-                render_plotly_chart(fig_tutores)
+                with col1:
+                    # Gráfico de Receita Mensal COM RÓTULOS
+                    fig_receita = px.line(
+                        receita_mensal, 
+                        x='Mês', 
+                        y=['Receita Bruta', 'Receita Líquida'],
+                        title="Receita Mensal",
+                        color_discrete_map={
+                            'Receita Bruta': COLORS['primary'],
+                            'Receita Líquida': COLORS['secondary']
+                        }
+                    )
+                    
+                    fig_receita.update_traces(
+                        mode='lines+markers+text',
+                        texttemplate='%{y:,.0f}',
+                        textposition='top center',
+                        textfont=dict(size=10, color=COLORS['text_primary'])
+                    )
+                    
+                    fig_receita = configurar_layout_clean(fig_receita, "Receita Mensal", show_labels=True)
+                    render_plotly_chart(fig_receita)
+                
+                with col2:
+                    # Gráfico de Novos Tutores COM RÓTULOS
+                    fig_tutores = px.bar(
+                        novos_tutores_mes,
+                        x='Mês',
+                        y='Novos Tutores',
+                        title="Novos Tutores por Mês",
+                        color_discrete_sequence=[COLORS['info']]
+                    )
+                    
+                    fig_tutores.update_traces(
+                        texttemplate='%{y}',
+                        textposition='outside',
+                        textfont=dict(size=10, color=COLORS['text_primary'])
+                    )
+                    
+                    fig_tutores = configurar_layout_clean(fig_tutores, "Novos Tutores por Mês", show_labels=True)
+                    render_plotly_chart(fig_tutores)
             
             # Análise de Cohort
             if not cohort_data.empty:
-                st.subheader("Análise de Cohort - Métricas por Mês")
-                
-                # Formatar cohort_data para exibição
-                cohort_formatado = cohort_data.copy()
-                colunas_monetarias = ['Investimento', 'CAC', 'LTV']
-                for col in colunas_monetarias:
-                    if col in cohort_formatado.columns:
-                        cohort_formatado[col] = cohort_formatado[col].apply(lambda x: f"R$ {x:,.0f}" if x > 0 else "R$ 0")
-                
-                cohort_formatado['ROI (%)'] = cohort_formatado['ROI (%)'].apply(lambda x: f"{x:.1f}%")
-                cohort_formatado['CAC/LTV'] = cohort_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}")
-                
-                st.dataframe(cohort_formatado, use_container_width=True)
+                with section_card():
+                    st.subheader("Análise de Cohort - Métricas por Mês")
+                    
+                    cohort_formatado = cohort_data.copy()
+                    colunas_monetarias = ['Investimento', 'CAC', 'LTV']
+                    for col in colunas_monetarias:
+                        if col in cohort_formatado.columns:
+                            cohort_formatado[col] = cohort_formatado[col].apply(lambda x: f"R$ {x:,.0f}" if x > 0 else "R$ 0")
+                    
+                    cohort_formatado['ROI (%)'] = cohort_formatado['ROI (%)'].apply(lambda x: f"{x:.1f}%")
+                    cohort_formatado['CAC/LTV'] = cohort_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}")
+                    
+                    st.dataframe(cohort_formatado, use_container_width=True)
         else:
             st.warning("Não há dados disponíveis para o período selecionado")
     
@@ -2767,42 +2931,44 @@ def main_dashboard():
             st.info("Tente selecionar outro ano ou verifique se os dados estão corretamente formatados.")
         else:
             # SEÇÃO 1: VISUALIZAÇÕES DAS MATRIZES (COM RÓTULOS)
-            st.subheader("Visualizações das Matrizes")
-            
-            st.markdown('<div class="heatmap-grid">', unsafe_allow_html=True)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if heatmap_receita:
-                    render_plotly_chart(heatmap_receita)
-                else:
-                    st.warning("Matriz de Receita não disponível")
+            with section_card():
+                st.subheader("Visualizações das Matrizes")
                 
-                if heatmap_cac:
-                    render_plotly_chart(heatmap_cac)
-                else:
-                    st.warning("Matriz de CAC não disponível")
-            
-            with col2:
-                if heatmap_ltv:
-                    render_plotly_chart(heatmap_ltv)
-                else:
-                    st.warning("Matriz de LTV não disponível")
+                st.markdown('<div class="heatmap-grid">', unsafe_allow_html=True)
                 
-                if heatmap_cac_ltv:
-                    render_plotly_chart(heatmap_cac_ltv)
-                else:
-                    st.warning("Matriz de CAC/LTV não disponível")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if heatmap_receita:
+                        render_plotly_chart(heatmap_receita)
+                    else:
+                        st.warning("Matriz de Receita não disponível")
+                    
+                    if heatmap_cac:
+                        render_plotly_chart(heatmap_cac)
+                    else:
+                        st.warning("Matriz de CAC não disponível")
+                
+                with col2:
+                    if heatmap_ltv:
+                        render_plotly_chart(heatmap_ltv)
+                    else:
+                        st.warning("Matriz de LTV não disponível")
+                    
+                    if heatmap_cac_ltv:
+                        render_plotly_chart(heatmap_cac_ltv)
+                    else:
+                        st.warning("Matriz de CAC/LTV não disponível")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
             
             # SEÇÃO 2: ANÁLISE DETALHADA POR MATRIZ
-            st.subheader("Análise Detalhada por Matriz")
-            
-            analise_tab1, analise_tab2, analise_tab3, analise_tab4 = st.tabs([
-                "Receita", "CAC", "LTV", "CAC/LTV"
-            ])
+            with section_card():
+                st.subheader("Análise Detalhada por Matriz")
+                
+                analise_tab1, analise_tab2, analise_tab3, analise_tab4 = st.tabs([
+                    "Receita", "CAC", "LTV", "CAC/LTV"
+                ])
             
             with analise_tab1:
                 if estatisticas_receita:
@@ -2962,58 +3128,58 @@ def main_dashboard():
         st.info("🔍 **Dados calculados a partir da base de RECEITA** - Utilizando E-MAILS únicos como indicador de leads convertidos")
         
         # CONSOLIDADO POR MES
-        st.subheader("CONSOLIDADO POR MÊS")
-        if not leads_consolidado.empty:
-            col1, col2, col3, col4 = st.columns(4)
-            with col1: 
-                st.metric("Total Leads (E-MAILS)", f"{leads_consolidado['Leads'].sum():,}")
-            with col2: 
-                st.metric("CPL Médio", f"R$ {leads_consolidado['CPL'].mean():.2f}")
-            with col3: 
-                st.metric("Receita Total", f"R$ {leads_consolidado['Receita'].sum():,.0f}")
-            with col4: 
-                st.metric("ROAS Médio", f"{leads_consolidado['ROAS'].mean():.1f}%")
-            
-            # Formatar tabela
-            consolidado_formatado = leads_consolidado.copy()
-            colunas_monetarias = ['Investimento', 'CPL', 'Realizado', 'CAC', 'Receita', 'TM', 'LTV']
-            for col in colunas_monetarias:
-                if col in consolidado_formatado.columns:
-                    consolidado_formatado[col] = consolidado_formatado[col].apply(lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00")
-            
-            if 'Tx.Conv' in consolidado_formatado.columns:
-                consolidado_formatado['Tx.Conv'] = consolidado_formatado['Tx.Conv'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
-            if 'ROAS' in consolidado_formatado.columns:
-                consolidado_formatado['ROAS'] = consolidado_formatado['ROAS'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
-            if 'CAC/LTV' in consolidado_formatado.columns:
-                consolidado_formatado['CAC/LTV'] = consolidado_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
-            
-            st.dataframe(consolidado_formatado, use_container_width=True)
-            
-            # Gráficos consolidados COM RÓTULOS
-            col1, col2 = st.columns(2)
-            with col1:
-                fig_consolidado_leads = px.bar(leads_consolidado, x='Mês', y='Leads', title="Leads por Mês (E-MAILS Únicos)")
-                fig_consolidado_leads.update_traces(
-                    texttemplate='%{y}',
-                    textposition='outside',
-                    textfont=dict(size=10, color=COLORS['text_primary'])
-                )
-                fig_consolidado_leads = configurar_layout_clean(fig_consolidado_leads, "Leads por Mês", show_labels=True)
-                render_plotly_chart(fig_consolidado_leads)
-            
-            with col2:
-                fig_consolidado_roas = px.line(leads_consolidado, x='Mês', y='ROAS', title="ROAS por Mês", markers=True)
-                fig_consolidado_roas.update_traces(
-                    mode='lines+markers+text',
-                    texttemplate='%{y:.1f}%',
-                    textposition='top center',
-                    textfont=dict(size=10, color=COLORS['text_primary'])
-                )
-                fig_consolidado_roas = configurar_layout_clean(fig_consolidado_roas, "ROAS por Mês", show_labels=True)
-                render_plotly_chart(fig_consolidado_roas)
-        else:
-            st.warning("Não há dados consolidados disponíveis para o período selecionado")
+        with section_card():
+            st.subheader("CONSOLIDADO POR MÊS")
+            if not leads_consolidado.empty:
+                col1, col2, col3, col4 = st.columns(4)
+                with col1: 
+                    st.metric("Total Leads (E-MAILS)", f"{leads_consolidado['Leads'].sum():,}")
+                with col2: 
+                    st.metric("CPL Médio", f"R$ {leads_consolidado['CPL'].mean():.2f}")
+                with col3: 
+                    st.metric("Receita Total", f"R$ {leads_consolidado['Receita'].sum():,.0f}")
+                with col4: 
+                    st.metric("ROAS Médio", f"{leads_consolidado['ROAS'].mean():.1f}%")
+                
+                # Formatar tabela
+                consolidado_formatado = leads_consolidado.copy()
+                colunas_monetarias = ['Investimento', 'CPL', 'Realizado', 'CAC', 'Receita', 'TM', 'LTV']
+                for col in colunas_monetarias:
+                    if col in consolidado_formatado.columns:
+                        consolidado_formatado[col] = consolidado_formatado[col].apply(lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00")
+                
+                if 'Tx.Conv' in consolidado_formatado.columns:
+                    consolidado_formatado['Tx.Conv'] = consolidado_formatado['Tx.Conv'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+                if 'ROAS' in consolidado_formatado.columns:
+                    consolidado_formatado['ROAS'] = consolidado_formatado['ROAS'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+                if 'CAC/LTV' in consolidado_formatado.columns:
+                    consolidado_formatado['CAC/LTV'] = consolidado_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
+                
+                st.dataframe(consolidado_formatado, use_container_width=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    fig_consolidado_leads = px.bar(leads_consolidado, x='Mês', y='Leads', title="Leads por Mês (E-MAILS Únicos)")
+                    fig_consolidado_leads.update_traces(
+                        texttemplate='%{y}',
+                        textposition='outside',
+                        textfont=dict(size=10, color=COLORS['text_primary'])
+                    )
+                    fig_consolidado_leads = configurar_layout_clean(fig_consolidado_leads, "Leads por Mês", show_labels=True)
+                    render_plotly_chart(fig_consolidado_leads)
+                
+                with col2:
+                    fig_consolidado_roas = px.line(leads_consolidado, x='Mês', y='ROAS', title="ROAS por Mês", markers=True)
+                    fig_consolidado_roas.update_traces(
+                        mode='lines+markers+text',
+                        texttemplate='%{y:.1f}%',
+                        textposition='top center',
+                        textfont=dict(size=10, color=COLORS['text_primary'])
+                    )
+                    fig_consolidado_roas = configurar_layout_clean(fig_consolidado_roas, "ROAS por Mês", show_labels=True)
+                    render_plotly_chart(fig_consolidado_roas)
+            else:
+                st.warning("Não há dados consolidados disponíveis para o período selecionado")
         
         st.markdown("---")
         
@@ -3072,62 +3238,61 @@ def main_dashboard():
         st.markdown("---")
         
         # POR LP MENSAL
-        st.subheader("POR LP MENSAL")
         if not leads_por_lp_mensal.empty:
-            lps_disponiveis = leads_por_lp_mensal['LP'].unique()
-            lp_selecionada = st.selectbox("Selecione a LP para análise detalhada:", lps_disponiveis)
-            
-            if lp_selecionada:
-                dados_lp = leads_por_lp_mensal[leads_por_lp_mensal['LP'] == lp_selecionada]
+            with section_card():
+                st.subheader("POR LP MENSAL")
+                lps_disponiveis = leads_por_lp_mensal['LP'].unique()
+                lp_selecionada = st.selectbox("Selecione a LP para análise detalhada:", lps_disponiveis)
                 
-                col1, col2, col3, col4 = st.columns(4)
-                with col1: 
-                    st.metric("Total Leads", f"{dados_lp['Leads'].sum():,}")
-                with col2: 
-                    st.metric("Receita Total", f"R$ {dados_lp['Receita'].sum():,.0f}")
-                with col3: 
-                    st.metric("ROAS Médio", f"{dados_lp['ROAS'].mean():.1f}%")
-                with col4: 
-                    st.metric("CAC/LTV Médio", f"{dados_lp['CAC/LTV'].mean():.2f}")
-                
-                # Formatar tabela
-                mensal_formatado = dados_lp.copy()
-                colunas_monetarias = ['Investimento', 'CPL', 'Realizado', 'CAC', 'Receita', 'TM', 'LTV']
-                for col in colunas_monetarias:
-                    if col in mensal_formatado.columns:
-                        mensal_formatado[col] = mensal_formatado[col].apply(lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00")
-                
-                if 'Tx.Conv' in mensal_formatado.columns:
-                    mensal_formatado['Tx.Conv'] = mensal_formatado['Tx.Conv'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
-                if 'ROAS' in mensal_formatado.columns:
-                    mensal_formatado['ROAS'] = mensal_formatado['ROAS'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
-                if 'CAC/LTV' in mensal_formatado.columns:
-                    mensal_formatado['CAC/LTV'] = mensal_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
-                
-                st.dataframe(mensal_formatado, use_container_width=True)
-                
-                # Gráficos mensais COM RÓTULOS
-                col1, col2 = st.columns(2)
-                with col1:
-                    fig_evolucao_leads = px.line(dados_lp, x='Mês', y='Leads', title=f"Evolução de Leads - {lp_selecionada}", markers=True)
-                    fig_evolucao_leads.update_traces(
-                        mode='lines+markers+text',
-                        texttemplate='%{y}',
-                        textposition='top center',
-                        textfont=dict(size=10, color=COLORS['text_primary'])
-                    )
-                    fig_evolucao_leads = configurar_layout_clean(fig_evolucao_leads, f"Evolução de Leads - {lp_selecionada}", show_labels=True)
-                    render_plotly_chart(fig_evolucao_leads)
-                with col2:
-                    fig_evolucao_receita = px.line(dados_lp, x='Mês', y='Receita', title=f"Evolução de Receita - {lp_selecionada}", markers=True)
-                    fig_evolucao_receita.update_traces(
-                        mode='lines+markers+text',
-                        texttemplate='%{y:,.0f}',
-                        textposition='top center',
-                        textfont=dict(size=10, color=COLORS['text_primary'])
-                    )
-                    fig_evolucao_receita = configurar_layout_clean(fig_evolucao_receita, f"Evolução de Receita - {lp_selecionada}", show_labels=True)
-                    render_plotly_chart(fig_evolucao_receita)
+                if lp_selecionada:
+                    dados_lp = leads_por_lp_mensal[leads_por_lp_mensal['LP'] == lp_selecionada]
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1: 
+                        st.metric("Total Leads", f"{dados_lp['Leads'].sum():,}")
+                    with col2: 
+                        st.metric("Receita Total", f"R$ {dados_lp['Receita'].sum():,.0f}")
+                    with col3: 
+                        st.metric("ROAS Médio", f"{dados_lp['ROAS'].mean():.1f}%")
+                    with col4: 
+                        st.metric("CAC/LTV Médio", f"{dados_lp['CAC/LTV'].mean():.2f}")
+                    
+                    mensal_formatado = dados_lp.copy()
+                    colunas_monetarias = ['Investimento', 'CPL', 'Realizado', 'CAC', 'Receita', 'TM', 'LTV']
+                    for col in colunas_monetarias:
+                        if col in mensal_formatado.columns:
+                            mensal_formatado[col] = mensal_formatado[col].apply(lambda x: f"R$ {x:,.2f}" if x > 0 else "R$ 0.00")
+                    
+                    if 'Tx.Conv' in mensal_formatado.columns:
+                        mensal_formatado['Tx.Conv'] = mensal_formatado['Tx.Conv'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+                    if 'ROAS' in mensal_formatado.columns:
+                        mensal_formatado['ROAS'] = mensal_formatado['ROAS'].apply(lambda x: f"{x:.1f}%" if x > 0 else "0.0%")
+                    if 'CAC/LTV' in mensal_formatado.columns:
+                        mensal_formatado['CAC/LTV'] = mensal_formatado['CAC/LTV'].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
+                    
+                    st.dataframe(mensal_formatado, use_container_width=True)
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        fig_evolucao_leads = px.line(dados_lp, x='Mês', y='Leads', title=f"Evolução de Leads - {lp_selecionada}", markers=True)
+                        fig_evolucao_leads.update_traces(
+                            mode='lines+markers+text',
+                            texttemplate='%{y}',
+                            textposition='top center',
+                            textfont=dict(size=10, color=COLORS['text_primary'])
+                        )
+                        fig_evolucao_leads = configurar_layout_clean(fig_evolucao_leads, f"Evolução de Leads - {lp_selecionada}", show_labels=True)
+                        render_plotly_chart(fig_evolucao_leads)
+                    with col2:
+                        fig_evolucao_receita = px.line(dados_lp, x='Mês', y='Receita', title=f"Evolução de Receita - {lp_selecionada}", markers=True)
+                        fig_evolucao_receita.update_traces(
+                            mode='lines+markers+text',
+                            texttemplate='%{y:,.0f}',
+                            textposition='top center',
+                            textfont=dict(size=10, color=COLORS['text_primary'])
+                        )
+                        fig_evolucao_receita = configurar_layout_clean(fig_evolucao_receita, f"Evolução de Receita - {lp_selecionada}", show_labels=True)
+                        render_plotly_chart(fig_evolucao_receita)
         else:
             st.warning("Não há dados mensais por LP disponíveis para o período selecionado")
     
