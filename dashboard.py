@@ -1984,6 +1984,21 @@ def section_card():
 # FUNÇÕES DE ANÁLISE DE LEADS ATUALIZADAS
 # =============================================
 
+def _get_email_mes_columns(df):
+    """Retorna nome da coluna de email ajustado e mês de aquisição com fallback."""
+    email_col = None
+    mes_col = None
+    for candidate in ["E-mail ajustado", "E-mail", "E-MAIL", "email", "EMAIL"]:
+        if candidate in df.columns:
+            email_col = candidate
+            break
+    for candidate in ["Mês de aquisição", "Mês aquisição", "Mês geração lead", "mes_ano_formatado_pt"]:
+        if candidate in df.columns:
+            mes_col = candidate
+            break
+    return email_col, mes_col
+
+
 def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
     """Análise consolidada mensal de leads COM DADOS DA BASE DE RECEITA"""
     try:
@@ -2001,6 +2016,13 @@ def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
         
         if df_filtrado.empty:
             return pd.DataFrame()
+
+        email_col, mes_col = _get_email_mes_columns(df_filtrado)
+        if email_col is None or mes_col is None:
+            st.warning("Colunas necessárias ('E-mail ajustado' e 'Mês de aquisição') não encontradas para o cálculo de leads.")
+            return pd.DataFrame()
+        
+        df_filtrado[email_col] = df_filtrado[email_col].astype(str).str.strip().str.lower()
         
         # Definir ordem dos meses
         if ano_filtro == 2024:
@@ -2011,8 +2033,8 @@ def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
                           'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
         
         # Calcular LEADS ÚNICOS por mês (baseado na base de receita)
-        leads_por_mes = df_filtrado.groupby('Mês geração lead').agg({
-            'E-MAIL': 'nunique',  # Conta emails únicos como leads
+        leads_por_mes = df_filtrado.groupby(mes_col).agg({
+            email_col: pd.Series.nunique,  # Conta emails únicos como leads
             'VL UNI': 'sum'       # Soma da receita
         }).reset_index()
         
@@ -2087,10 +2109,17 @@ def analisar_leads_por_lp(df_leads, df_receita, ano_filtro=2025):
         
         if df_filtrado.empty:
             return pd.DataFrame()
+
+        email_col, mes_col = _get_email_mes_columns(df_filtrado)
+        if email_col is None or mes_col is None:
+            st.warning("Colunas necessárias ('E-mail ajustado' e 'Mês de aquisição') não encontradas para o cálculo de leads por LP.")
+            return pd.DataFrame()
+
+        df_filtrado[email_col] = df_filtrado[email_col].astype(str).str.strip().str.lower()
         
         # Agrupar por LP
         leads_por_lp = df_filtrado.groupby('LP').agg({
-            'E-MAIL': 'nunique',  # Leads únicos
+            email_col: pd.Series.nunique,  # Leads únicos
             'VL UNI': 'sum'       # Receita realizada
         }).reset_index()
         
@@ -2154,6 +2183,13 @@ def analisar_leads_por_lp_mensal(df_leads, df_receita, ano_filtro=2025):
         
         if df_filtrado.empty:
             return pd.DataFrame()
+
+        email_col, mes_col = _get_email_mes_columns(df_filtrado)
+        if email_col is None or mes_col is None:
+            st.warning("Colunas necessárias ('E-mail ajustado' e 'Mês de aquisição') não encontradas para o cálculo de leads mensais por LP.")
+            return pd.DataFrame()
+
+        df_filtrado[email_col] = df_filtrado[email_col].astype(str).str.strip().str.lower()
         
         # Definir ordem dos meses
         if ano_filtro == 2024:
@@ -2164,8 +2200,8 @@ def analisar_leads_por_lp_mensal(df_leads, df_receita, ano_filtro=2025):
                           'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
         
         # Agrupar por LP e mês
-        leads_por_lp_mes = df_filtrado.groupby(['LP', 'Mês geração lead']).agg({
-            'E-MAIL': 'nunique',
+        leads_por_lp_mes = df_filtrado.groupby(['LP', mes_col]).agg({
+            email_col: pd.Series.nunique,
             'VL UNI': 'sum'
         }).reset_index()
         
