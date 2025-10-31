@@ -1988,7 +1988,7 @@ def _get_email_mes_columns(df):
     """Retorna nome da coluna de email ajustado e mês de aquisição com fallback."""
     email_col = None
     mes_col = None
-    for candidate in ["E-mail ajustado", "E-mail", "E-MAIL", "email", "EMAIL"]:
+    for candidate in ["E-mail ajustado", "E-mail", "Email", "E-MAIL", "email", "EMAIL"]:
         if candidate in df.columns:
             email_col = candidate
             break
@@ -1999,54 +1999,52 @@ def _get_email_mes_columns(df):
     return email_col, mes_col
 
 
+def _get_lp_column(df):
+    """Retorna coluna que identifica a LP/campanha."""
+    for candidate in ["LP", "LP ajustado", "Linha de Produto", "Linha de Produto / Campanha"]:
+        if candidate in df.columns:
+            return candidate
+    return None
+
+
 def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
     """Análise consolidada mensal de leads COM DADOS DA BASE DE RECEITA"""
     try:
-        # AGORA USANDO APENAS A BASE DE RECEITA PARA CALCULAR LEADS
-        if df_receita is None or df_receita.empty:
-            return pd.DataFrame()
-        
-        # Filtrar dados da base de receita
-        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
-        
-        if ano_filtro == 2024:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
-        else:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
-        
-        if df_filtrado.empty:
+        if df_leads is None or df_leads.empty:
+            st.warning("Não há dados de leads disponíveis para consolidação mensal.")
             return pd.DataFrame()
 
-        email_col, mes_col = _get_email_mes_columns(df_filtrado)
+        email_col, mes_col = _get_email_mes_columns(df_leads)
         if email_col is None or mes_col is None:
-            st.warning("Colunas necessárias ('E-mail ajustado' e 'Mês de aquisição') não encontradas para o cálculo de leads.")
+            st.warning("Colunas necessárias ('E-mail ajustado' e 'Mês de aquisição') não encontradas na base de leads.")
             return pd.DataFrame()
         
-        df_filtrado[email_col] = df_filtrado[email_col].astype(str).str.strip().str.lower()
+        ordem_meses = MESES_POR_ANO.get(ano_filtro, TODOS_MESES)
+
+        leads_base = df_leads[[email_col, mes_col]].copy()
+        leads_base[email_col] = leads_base[email_col].astype(str).str.strip().str.lower()
+        leads_base[mes_col] = leads_base[mes_col].astype(str).str.strip()
+        leads_base = leads_base[leads_base[mes_col].isin(ordem_meses)]
+        leads_base = leads_base.dropna(subset=[email_col, mes_col])
         
-        # Definir ordem dos meses
-        if ano_filtro == 2024:
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
+        if leads_base.empty:
+            return pd.DataFrame()
         
-        # Calcular LEADS ÚNICOS por mês (baseado na base de receita)
-        leads_por_mes = df_filtrado.groupby(mes_col).agg({
-            email_col: pd.Series.nunique,  # Conta emails únicos como leads
-            'VL UNI': 'sum'       # Soma da receita
-        }).reset_index()
-        
-        leads_por_mes.columns = ['Mês', 'Leads', 'Realizado']
-        
-        # Ordenar por ordem dos meses
-        leads_por_mes['Mês_Ordenado'] = pd.Categorical(leads_por_mes['Mês'], categories=ordem_meses, ordered=True)
-        leads_por_mes = leads_por_mes.sort_values('Mês_Ordenado').drop('Mês_Ordenado', axis=1)
-        
-        # Adicionar meses faltantes
         meses_df = pd.DataFrame({'Mês': ordem_meses})
+        leads_por_mes = leads_base.groupby(mes_col)[email_col].nunique().reset_index()
+        leads_por_mes.columns = ['Mês', 'Leads']
         leads_por_mes = meses_df.merge(leads_por_mes, on='Mês', how='left').fillna(0)
+        leads_por_mes['Leads'] = leads_por_mes['Leads'].astype(int)
+
+        # Receitas provenientes da base de receita original
+        realizado = pd.DataFrame(columns=['Mês', 'Realizado'])
+        if df_receita is not None and not df_receita.empty:
+            df_receita_filt = filtrar_receita_base(df_receita, ano=ano_filtro, exigir_lead=True)
+            if not df_receita_filt.empty:
+                realizado = df_receita_filt.groupby('Mês geração lead')['VL UNI'].sum().reset_index()
+                realizado.columns = ['Mês', 'Realizado']
+        leads_por_mes = leads_por_mes.merge(realizado, on='Mês', how='left')
+        leads_por_mes['Realizado'] = leads_por_mes['Realizado'].fillna(0.0)
         
         # Adicionar investimento
         investimento_mensal = INVESTIMENTO_MENSAL_2024 if ano_filtro == 2024 else INVESTIMENTO_MENSAL_2025
@@ -2095,35 +2093,40 @@ def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
 def analisar_leads_por_lp(df_leads, df_receita, ano_filtro=2025):
     """Análise de leads por LP (categoria) COM DADOS DA BASE DE RECEITA"""
     try:
-        # AGORA USANDO APENAS A BASE DE RECEITA
-        if df_receita is None or df_receita.empty:
-            return pd.DataFrame()
-        
-        # Filtrar dados da base de receita
-        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
-        
-        if ano_filtro == 2024:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
-        else:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
-        
-        if df_filtrado.empty:
+        if df_leads is None or df_leads.empty:
+            st.warning("Não há dados de leads disponíveis para detalhamento por LP.")
             return pd.DataFrame()
 
-        email_col, mes_col = _get_email_mes_columns(df_filtrado)
-        if email_col is None or mes_col is None:
-            st.warning("Colunas necessárias ('E-mail ajustado' e 'Mês de aquisição') não encontradas para o cálculo de leads por LP.")
+        email_col, mes_col = _get_email_mes_columns(df_leads)
+        lp_col = _get_lp_column(df_leads)
+        if email_col is None or mes_col is None or lp_col is None:
+            st.warning("Colunas necessárias ('E-mail ajustado', 'Mês de aquisição' e 'LP') não encontradas na base de leads.")
             return pd.DataFrame()
 
-        df_filtrado[email_col] = df_filtrado[email_col].astype(str).str.strip().str.lower()
+        ordem_meses = MESES_POR_ANO.get(ano_filtro, TODOS_MESES)
+        leads_base = df_leads[[lp_col, email_col, mes_col]].copy()
+        leads_base[email_col] = leads_base[email_col].astype(str).str.strip().str.lower()
+        leads_base[mes_col] = leads_base[mes_col].astype(str).str.strip()
+        leads_base = leads_base[leads_base[mes_col].isin(ordem_meses)]
+        leads_base = leads_base.dropna(subset=[lp_col, email_col, mes_col])
         
-        # Agrupar por LP
-        leads_por_lp = df_filtrado.groupby('LP').agg({
-            email_col: pd.Series.nunique,  # Leads únicos
-            'VL UNI': 'sum'       # Receita realizada
-        }).reset_index()
+        if leads_base.empty:
+            return pd.DataFrame()
+
+        leads_por_lp = leads_base.groupby(lp_col)[email_col].nunique().reset_index()
+        leads_por_lp.columns = ['LP', 'Leads']
+
+        # Receita por LP proveniente da base de receita
+        realizado_lp = pd.DataFrame(columns=['LP', 'Realizado'])
+        if df_receita is not None and not df_receita.empty:
+            df_receita_filt = filtrar_receita_base(df_receita, ano=ano_filtro, exigir_lead=True)
+            if not df_receita_filt.empty and 'LP' in df_receita_filt.columns:
+                realizado_lp = df_receita_filt.groupby('LP')['VL UNI'].sum().reset_index()
+                realizado_lp.columns = ['LP', 'Realizado']
+        leads_por_lp = leads_por_lp.merge(realizado_lp, on='LP', how='left')
+        leads_por_lp['Realizado'] = leads_por_lp['Realizado'].fillna(0.0)
         
-        leads_por_lp.columns = ['LP', 'Leads', 'Realizado']
+        leads_por_lp['Leads'] = leads_por_lp['Leads'].astype(int)
         
         # Adicionar investimento
         leads_por_lp['Investimento'] = leads_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
@@ -2167,107 +2170,118 @@ def analisar_leads_por_lp(df_leads, df_receita, ano_filtro=2025):
         return pd.DataFrame()
 
 def analisar_leads_por_lp_mensal(df_leads, df_receita, ano_filtro=2025):
-    """Análise mensal de leads por LP COM DADOS DA BASE DE RECEITA"""
+    """Análise mensal de leads por LP usando e-mails ajustados como chave única."""
     try:
-        # AGORA USANDO APENAS A BASE DE RECEITA
-        if df_receita is None or df_receita.empty:
-            return pd.DataFrame()
-        
-        # Filtrar dados da base de receita
-        df_filtrado = df_receita[df_receita['Considerar?'] == 'Sim'].copy()
-        
-        if ano_filtro == 2024:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2024|24', na=False)]
-        else:
-            df_filtrado = df_filtrado[df_filtrado['Mês geração lead'].str.contains('2025|25', na=False)]
-        
-        if df_filtrado.empty:
+        if df_leads is None or df_leads.empty:
+            st.warning("Não há dados de leads disponíveis para o detalhamento mensal por LP.")
             return pd.DataFrame()
 
-        email_col, mes_col = _get_email_mes_columns(df_filtrado)
-        if email_col is None or mes_col is None:
-            st.warning("Colunas necessárias ('E-mail ajustado' e 'Mês de aquisição') não encontradas para o cálculo de leads mensais por LP.")
+        email_col, mes_col = _get_email_mes_columns(df_leads)
+        lp_col = _get_lp_column(df_leads)
+        if email_col is None or mes_col is None or lp_col is None:
+            st.warning("Colunas necessárias ('E-mail ajustado', 'Mês de aquisição' e 'LP') não encontradas para o cálculo mensal por LP.")
             return pd.DataFrame()
 
-        df_filtrado[email_col] = df_filtrado[email_col].astype(str).str.strip().str.lower()
-        
-        # Definir ordem dos meses
-        if ano_filtro == 2024:
-            ordem_meses = ['jan./24', 'fev./24', 'mar./24', 'abr./24', 'mai./24', 'jun./24', 
-                          'jul./24', 'ago./24', 'set./24', 'out./24', 'nov./24', 'dez./24']
-        else:
-            ordem_meses = ['jan./25', 'fev./25', 'mar./25', 'abr./25', 'mai./25', 'jun./25', 
-                          'jul./25', 'ago./25', 'set./25', 'out./25', 'nov./25', 'dez./25']
-        
-        # Agrupar por LP e mês
-        leads_por_lp_mes = df_filtrado.groupby(['LP', mes_col]).agg({
-            email_col: pd.Series.nunique,
-            'VL UNI': 'sum'
-        }).reset_index()
-        
-        leads_por_lp_mes.columns = ['LP', 'Mês', 'Leads', 'Realizado']
-        
-        # Adicionar investimento mensal proporcional
-        investimento_total_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
+        ordem_meses = MESES_POR_ANO.get(ano_filtro, TODOS_MESES)
+
+        leads_base = df_leads[[lp_col, email_col, mes_col]].copy()
+        leads_base[email_col] = leads_base[email_col].astype(str).str.strip().str.lower()
+        leads_base[mes_col] = leads_base[mes_col].astype(str).str.strip()
+        leads_base[lp_col] = leads_base[lp_col].astype(str).str.strip()
+        leads_base = leads_base[leads_base[mes_col].isin(ordem_meses)]
+        leads_base = leads_base.dropna(subset=[lp_col, email_col, mes_col])
+
+        if leads_base.empty:
+            return pd.DataFrame()
+
+        leads_por_lp_mes = (
+            leads_base.groupby([lp_col, mes_col])[email_col]
+            .nunique()
+            .reset_index()
+            .rename(columns={lp_col: 'LP', mes_col: 'Mês', email_col: 'Leads'})
+        )
+        leads_por_lp_mes['Leads'] = leads_por_lp_mes['Leads'].astype(int)
+
+        realizado_lp_mes = pd.DataFrame(columns=['LP', 'Mês', 'Realizado'])
+        if df_receita is not None and not df_receita.empty:
+            df_receita_filt = filtrar_receita_base(df_receita, ano=ano_filtro, exigir_lead=True)
+            if not df_receita_filt.empty and 'LP' in df_receita_filt.columns:
+                possiveis_meses = ['Mês geração lead', 'Mês geração receita']
+                mes_receita_col = next((col for col in possiveis_meses if col in df_receita_filt.columns), None)
+                if mes_receita_col:
+                    df_receita_filt = df_receita_filt.dropna(subset=['LP', mes_receita_col])
+                    df_receita_filt['LP'] = df_receita_filt['LP'].astype(str).str.strip()
+                    df_receita_filt[mes_receita_col] = df_receita_filt[mes_receita_col].astype(str).str.strip()
+                    df_receita_filt = df_receita_filt[df_receita_filt[mes_receita_col].isin(ordem_meses)]
+                    realizado_lp_mes = (
+                        df_receita_filt.groupby(['LP', mes_receita_col])['VL UNI']
+                        .sum()
+                        .reset_index()
+                        .rename(columns={mes_receita_col: 'Mês', 'VL UNI': 'Realizado'})
+                    )
+
+        leads_por_lp_mes = leads_por_lp_mes.merge(realizado_lp_mes, on=['LP', 'Mês'], how='left')
+        leads_por_lp_mes['Realizado'] = leads_por_lp_mes['Realizado'].fillna(0.0)
+
+        investimento_total_por_lp = (
+            leads_por_lp_mes.groupby('LP')['Leads'].sum()
+            .reset_index()
+            .rename(columns={'Leads': 'Total_Leads'})
+        )
         investimento_total_por_lp['Investimento_Total'] = investimento_total_por_lp['LP'].map(INVESTIMENTO_POR_LP).fillna(0)
-        
-        leads_por_lp_mes = leads_por_lp_mes.merge(investimento_total_por_lp[['LP', 'Investimento_Total']], on='LP', how='left')
-        
-        # Calcular investimento mensal proporcional aos leads
-        total_leads_por_lp = leads_por_lp_mes.groupby('LP')['Leads'].sum().reset_index()
-        total_leads_por_lp.columns = ['LP', 'Total_Leads']
-        
-        leads_por_lp_mes = leads_por_lp_mes.merge(total_leads_por_lp, on='LP', how='left')
+        leads_por_lp_mes = leads_por_lp_mes.merge(investimento_total_por_lp, on='LP', how='left')
+
         leads_por_lp_mes['Investimento'] = leads_por_lp_mes.apply(
-            lambda x: (x['Leads'] / x['Total_Leads']) * x['Investimento_Total'] if x['Total_Leads'] > 0 else 0, axis=1
+            lambda x: (x['Leads'] / x['Total_Leads']) * x['Investimento_Total'] if x['Total_Leads'] > 0 else 0,
+            axis=1
         )
-        
-        # Calcular métricas
+
         leads_por_lp_mes['CPL'] = leads_por_lp_mes.apply(
-            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0, axis=1
+            lambda x: x['Investimento'] / x['Leads'] if x['Leads'] > 0 else 0,
+            axis=1
         )
-        
+
         leads_por_lp_mes['Tx.Conv'] = leads_por_lp_mes.apply(
-            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+            lambda x: (x['Realizado'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0,
+            axis=1
         )
-        
+
         leads_por_lp_mes['Tutores'] = leads_por_lp_mes['Leads']
-        
         leads_por_lp_mes['CAC'] = leads_por_lp_mes.apply(
-            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+            lambda x: x['Investimento'] / x['Tutores'] if x['Tutores'] > 0 else 0,
+            axis=1
         )
-        
+
         leads_por_lp_mes['Receita'] = leads_por_lp_mes['Realizado'] * 0.56
         leads_por_lp_mes['ROAS'] = leads_por_lp_mes.apply(
-            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0, axis=1
+            lambda x: (x['Receita'] / x['Investimento'] * 100) if x['Investimento'] > 0 else 0,
+            axis=1
         )
-        
+
         leads_por_lp_mes['TM'] = leads_por_lp_mes.apply(
-            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+            lambda x: x['Realizado'] / x['Tutores'] if x['Tutores'] > 0 else 0,
+            axis=1
         )
-        
+
         leads_por_lp_mes['LTV'] = leads_por_lp_mes.apply(
-            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0, axis=1
+            lambda x: x['Receita'] / x['Tutores'] if x['Tutores'] > 0 else 0,
+            axis=1
         )
-        
+
         leads_por_lp_mes['CAC/LTV'] = leads_por_lp_mes.apply(
-            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0, axis=1
+            lambda x: x['CAC'] / x['LTV'] if x['LTV'] > 0 else 0,
+            axis=1
         )
-        
-        # Ordenar por mês
-        leads_por_lp_mes['Mês_Ordenado'] = pd.Categorical(leads_por_lp_mes['Mês'], categories=ordem_meses, ordered=True)
-        leads_por_lp_mes = leads_por_lp_mes.sort_values(['LP', 'Mês_Ordenado']).drop('Mês_Ordenado', axis=1)
-        
-        return leads_por_lp_mes
-        
+
+        leads_por_lp_mes['Mês'] = pd.Categorical(leads_por_lp_mes['Mês'], categories=ordem_meses, ordered=True)
+        leads_por_lp_mes = leads_por_lp_mes.sort_values(['LP', 'Mês']).reset_index(drop=True)
+        leads_por_lp_mes['Mês'] = leads_por_lp_mes['Mês'].astype(str)
+
+        return leads_por_lp_mes.drop(columns=['Investimento_Total', 'Total_Leads'], errors='ignore')
+
     except Exception as e:
         st.error(f"Erro na análise mensal de leads por LP: {e}")
         return pd.DataFrame()
-
-# =============================================
-# DASHBOARD PRINCIPAL COMPLETO
-# =============================================
-
 def main_dashboard():
     # Atualizar tema dinamicamente
     global TEMA_ATUAL, COLORS
