@@ -5,6 +5,7 @@ import os
 from PIL import Image
 import base64
 from datetime import datetime, timedelta
+import unicodedata
 import warnings
 warnings.filterwarnings('ignore')
 from contextlib import contextmanager
@@ -312,10 +313,27 @@ def load_leads_data():
             if os.path.exists(file_path):
                 df = pd.read_excel(file_path, engine='openpyxl')
                 
-                if 'email' not in df.columns or 'mes_ano_formatado_pt' not in df.columns:
-                    st.warning("Colunas 'email' ou 'mes_ano_formatado_pt' não encontradas nos dados de leads")
+                email_col, mes_col = _get_email_mes_columns(df)
+                if email_col is None or mes_col is None:
+                    st.warning("Não foi possível identificar as colunas de e-mail e mês de aquisição na base de leads")
+                    st.info(f"Colunas disponíveis: {', '.join(df.columns)}")
                     return None
-                
+
+                lp_col = _get_lp_column(df)
+                rename_map = {}
+                if email_col is not None and email_col != 'E-mail ajustado':
+                    rename_map[email_col] = 'E-mail ajustado'
+                if mes_col is not None and mes_col != 'Mês aquisição':
+                    rename_map[mes_col] = 'Mês aquisição'
+                if lp_col and lp_col != 'LP':
+                    rename_map[lp_col] = 'LP'
+
+                if rename_map:
+                    df = df.rename(columns=rename_map)
+
+                df['E-mail ajustado'] = df['E-mail ajustado'].astype(str).str.strip()
+                df['Mês aquisição'] = df['Mês aquisição'].astype(str).str.strip()
+
                 return df
         except Exception as e:
             continue
@@ -1984,27 +2002,57 @@ def section_card():
 # FUNÇÕES DE ANÁLISE DE LEADS ATUALIZADAS
 # =============================================
 
+def _normalize_column_name(name):
+    """Normaliza nomes de coluna removendo acentos e padronizando caixa."""
+    if not isinstance(name, str):
+        return ""
+    normalized = unicodedata.normalize('NFKD', name)
+    without_accents = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+    return without_accents.lower().strip()
+
+
+def _match_column(df, candidates):
+    """Retorna o nome real da coluna que corresponde a uma das candidatas."""
+    normalized_map = {}
+    for col in df.columns:
+        if isinstance(col, str):
+            normalized_map[_normalize_column_name(col)] = col
+    for candidate in candidates:
+        normalized_candidate = _normalize_column_name(candidate)
+        if normalized_candidate in normalized_map:
+            return normalized_map[normalized_candidate]
+    return None
+
+
 def _get_email_mes_columns(df):
     """Retorna nome da coluna de email ajustado e mês de aquisição com fallback."""
-    email_col = None
-    mes_col = None
-    for candidate in ["E-mail ajustado", "E-mail", "Email", "E-MAIL", "email", "EMAIL"]:
-        if candidate in df.columns:
-            email_col = candidate
-            break
-    for candidate in ["Mês de aquisição", "Mês aquisição", "Mês geração lead", "mes_ano_formatado_pt"]:
-        if candidate in df.columns:
-            mes_col = candidate
-            break
+    email_col = _match_column(df, [
+        "E-mail ajustado",
+        "E-mail",
+        "Email",
+        "E-MAIL",
+        "email",
+        "EMAIL"
+    ])
+    mes_col = _match_column(df, [
+        "Mês de aquisição",
+        "Mês aquisição",
+        "Mes aquisicao",
+        "Mês aquisicao",
+        "Mês geração lead",
+        "mes_ano_formatado_pt"
+    ])
     return email_col, mes_col
 
 
 def _get_lp_column(df):
     """Retorna coluna que identifica a LP/campanha."""
-    for candidate in ["LP", "LP ajustado", "Linha de Produto", "Linha de Produto / Campanha"]:
-        if candidate in df.columns:
-            return candidate
-    return None
+    return _match_column(df, [
+        "LP",
+        "LP ajustado",
+        "Linha de Produto",
+        "Linha de Produto / Campanha"
+    ])
 
 
 def analisar_leads_consolidado_mes(df_leads, df_receita, ano_filtro=2025):
