@@ -2042,6 +2042,99 @@ def gerar_insights_ia(receita_mensal, kpis_avancados, metricas_avancadas_lp, ana
     return insights[:5]
 
 
+def gerar_cenarios_preditivos_ia(df_previsoes, volatilidade_base=None, ajuste_percentual=0.0):
+    """Constrói cenários otimista, base e conservador a partir das previsões."""
+    if df_previsoes is None or df_previsoes.empty:
+        return []
+
+    try:
+        base_df = df_previsoes[['Mês', 'Receita Bruta Prevista']].reset_index(drop=True)
+        base_media = base_df['Receita Bruta Prevista'].mean()
+        base_total = base_df['Receita Bruta Prevista'].sum()
+
+        if base_media <= 0 or base_total <= 0:
+            return []
+
+        if volatilidade_base and volatilidade_base > 0:
+            volatilidade_rel = volatilidade_base / base_media
+        else:
+            volatilidade_rel = base_df['Receita Bruta Prevista'].std() / base_media
+
+        if not np.isfinite(volatilidade_rel):
+            volatilidade_rel = 0.08
+
+        volatilidade_rel = float(min(max(volatilidade_rel, 0.05), 0.25))
+
+        ajuste_expansivo = max(0.0, ajuste_percentual)
+        ajuste_defensivo = max(0.0, -ajuste_percentual)
+
+        cenarios_config = [
+            {
+                "nome": "Conservador IA",
+                "emoji": "🛡️",
+                "descricao": "Foco em retenção e eficiência operacional.",
+                "fator": -(volatilidade_rel / 1.6 + 0.04 + ajuste_defensivo)
+            },
+            {
+                "nome": "Base IA",
+                "emoji": "⚖️",
+                "descricao": "Combinação equilibrada dos modelos preditivos.",
+                "fator": 0.0
+            },
+            {
+                "nome": "Expansivo IA",
+                "emoji": "🚀",
+                "descricao": "Expansão agressiva guiada por IA e reinvestimento incremental.",
+                "fator": volatilidade_rel + 0.08 + ajuste_expansivo
+            }
+        ]
+
+        cenarios = []
+        for config in cenarios_config:
+            fator = config["fator"]
+            serie = (base_df['Receita Bruta Prevista'] * (1 + fator)).clip(lower=0)
+            total = serie.sum()
+            delta = ((total - base_total) / base_total) * 100 if base_total else 0
+
+            cenarios.append({
+                **config,
+                "fator": fator,
+                "serie": serie,
+                "serie_liquida": serie * 0.56,
+                "total": total,
+                "delta_total": delta
+            })
+
+        return cenarios
+    except Exception:
+        return []
+
+
+def preparar_dataframe_cenarios(df_previsoes, cenarios):
+    """Monta dataframe combinando séries de cenários para visualização."""
+    if df_previsoes is None or df_previsoes.empty or not cenarios:
+        return pd.DataFrame()
+
+    meses = df_previsoes['Mês'].reset_index(drop=True)
+    frames = []
+
+    for cenario in cenarios:
+        serie = cenario.get("serie")
+        if serie is None:
+            continue
+
+        frames.append(pd.DataFrame({
+            'Mês': meses,
+            'Receita Cenário': pd.Series(serie).reset_index(drop=True),
+            'Cenário': cenario.get("nome", "Cenário")
+        }))
+
+    if not frames:
+        return pd.DataFrame()
+
+    return pd.concat(frames, ignore_index=True)
+
+
 @contextmanager
 def section_card():
     """Contexto para agrupar blocos em um cartão consistente."""
@@ -2764,6 +2857,80 @@ def main_dashboard():
         margin-right: 0.3rem;
     }}
 
+    .scenario-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.4rem;
+        margin: 1.4rem 0 0.6rem;
+    }}
+
+    .scenario-card {{
+        position: relative;
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(16, 185, 129, 0.12));
+        border: 1px solid {COLORS['primary']}26;
+        border-radius: 20px;
+        padding: 1.4rem 1.6rem;
+        overflow: hidden;
+        box-shadow: 0 20px 36px rgba(15, 23, 42, 0.12);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        backdrop-filter: blur(6px);
+    }}
+
+    .scenario-card::after {{
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(255,255,255,0.25), transparent 45%);
+        opacity: 0.8;
+        pointer-events: none;
+    }}
+
+    .scenario-card:hover {{
+        transform: translateY(-6px);
+        box-shadow: 0 26px 42px rgba(37, 99, 235, 0.18);
+    }}
+
+    .scenario-card__icon {{
+        font-size: 1.9rem;
+        line-height: 1;
+    }}
+
+    .scenario-card__title {{
+        font-weight: 700;
+        font-size: 1.05rem;
+        margin-top: 0.6rem;
+        color: {COLORS['text_primary']};
+    }}
+
+    .scenario-card__value {{
+        font-size: 1.7rem;
+        font-weight: 700;
+        margin-top: 0.6rem;
+        color: {COLORS['text_primary']};
+    }}
+
+    .scenario-card__delta {{
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-top: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }}
+
+    .scenario-card__delta--positive {{
+        color: {COLORS['secondary']};
+    }}
+
+    .scenario-card__delta--negative {{
+        color: {COLORS['accent']};
+    }}
+
+    .scenario-card__description {{
+        margin-top: 0.9rem;
+        font-size: 0.85rem;
+        color: {COLORS['text_secondary']};
+    }}
+
     @keyframes marqueeScroll {{
         0% {{ transform: translateX(0); }}
         100% {{ transform: translateX(-50%); }}
@@ -3472,164 +3639,225 @@ def main_dashboard():
     with tab4:
         st.markdown(f'<div class="section-header"><h2 class="section-title">Análise Preditiva e Insights Avançados</h2><p class="section-subtitle">Previsões e análises estratégicas baseadas em machine learning</p></div>', unsafe_allow_html=True)
         
-        # ANÁLISE PREDITIVA
-        st.subheader("Previsão de Receita")
-        
-        if df_previsoes is not None:
-            col1, col2 = st.columns([2, 1])
+        with section_card():
+            st.subheader("Previsão de Receita")
             
-            with col1:
-                # Gráfico de previsão COM RÓTULOS
-                fig_previsao = go.Figure()
+            if df_previsoes is not None:
+                col1, col2 = st.columns([2, 1])
                 
-                # Adicionar histórico
-                if dados_historicos is not None:
+                with col1:
+                    fig_previsao = go.Figure()
+                    
+                    if dados_historicos is not None:
+                        fig_previsao.add_trace(go.Scatter(
+                            x=dados_historicos['Mês'],
+                            y=dados_historicos['Receita Bruta'],
+                            mode='lines+markers',
+                            name='Histórico',
+                            line=dict(color=COLORS['primary'], width=3),
+                            marker=dict(size=8)
+                        ))
+                    
                     fig_previsao.add_trace(go.Scatter(
-                        x=dados_historicos['Mês'],
-                        y=dados_historicos['Receita Bruta'],
-                        mode='lines+markers',
-                        name='Histórico',
-                        line=dict(color=COLORS['primary'], width=3),
-                        marker=dict(size=8)
+                        x=df_previsoes['Mês'],
+                        y=df_previsoes['Receita Bruta Prevista'],
+                        mode='lines+markers+text',
+                        name='Previsão',
+                        line=dict(color=COLORS['warning'], width=3, dash='dash'),
+                        marker=dict(size=8),
+                        text=[f'R$ {x:,.0f}' for x in df_previsoes['Receita Bruta Prevista']],
+                        textposition='top center'
                     ))
+                    
+                    fig_previsao.add_trace(go.Scatter(
+                        x=df_previsoes['Mês'].tolist() + df_previsoes['Mês'].tolist()[::-1],
+                        y=df_previsoes['IC Superior'].tolist() + df_previsoes['IC Inferior'].tolist()[::-1],
+                        fill='toself',
+                        fillcolor='rgba(255, 152, 0, 0.2)',
+                        line=dict(color='rgba(255, 152, 0, 0)'),
+                        name='Intervalo Confiança 95%'
+                    ))
+                    
+                    fig_previsao = configurar_layout_clean(fig_previsao, "Previsão de Receita - Próximos 6 Meses", show_labels=True)
+                    render_plotly_chart(fig_previsao)
                 
-                # Adicionar previsões
-                fig_previsao.add_trace(go.Scatter(
-                    x=df_previsoes['Mês'],
-                    y=df_previsoes['Receita Bruta Prevista'],
-                    mode='lines+markers+text',
-                    name='Previsão',
-                    line=dict(color=COLORS['warning'], width=3, dash='dash'),
-                    marker=dict(size=8),
-                    text=[f'R$ {x:,.0f}' for x in df_previsoes['Receita Bruta Prevista']],
-                    textposition='top center'
-                ))
+                with col2:
+                    precisao_media = (sum([resultados_modelos[modelo]['r2'] for modelo in resultados_modelos]) / len(resultados_modelos)) * 100 if resultados_modelos else 0
+                    st.metric("Precisão Média dos Modelos", f"{precisao_media:.1f}%")
+                    st.metric("Erro Médio de Previsão", f"R$ {desvio_padrao:,.0f}" if desvio_padrao else "N/A")
+                    
+                    st.markdown("""
+                    **Modelos Utilizados:**
+                    - Regressão Linear
+                    - Random Forest
+                    - Média Combinada
+                    """)
+                    
+                    for nome, resultado in resultados_modelos.items():
+                        with st.expander(f"Métricas {nome}"):
+                            st.metric("R²", f"{resultado['r2']:.3f}")
+                            st.metric("MAE", f"R$ {resultado['mae']:,.0f}")
+            else:
+                st.warning("Não há dados suficientes para gerar previsões. São necessários pelo menos 3 meses de dados históricos.")
+
+        if df_previsoes is not None:
+            with section_card():
+                st.subheader("Cenários Preditivos IA")
                 
-                # Adicionar intervalo de confiança
-                fig_previsao.add_trace(go.Scatter(
-                    x=df_previsoes['Mês'].tolist() + df_previsoes['Mês'].tolist()[::-1],
-                    y=df_previsoes['IC Superior'].tolist() + df_previsoes['IC Inferior'].tolist()[::-1],
-                    fill='toself',
-                    fillcolor='rgba(255, 152, 0, 0.2)',
-                    line=dict(color='rgba(255, 152, 0, 0)'),
-                    name='Intervalo Confiança 95%'
-                ))
+                volatilidade_base = desvio_padrao if desvio_padrao else 0.0
+                media_prevista = df_previsoes['Receita Bruta Prevista'].mean()
+                volatilidade_percentual = (volatilidade_base / media_prevista * 100) if media_prevista else 0.0
                 
-                fig_previsao = configurar_layout_clean(fig_previsao, "Previsão de Receita - Próximos 6 Meses", show_labels=True)
-                render_plotly_chart(fig_previsao)
-            
-            with col2:
-                st.metric("Precisão Média dos Modelos", 
-                         f"{(sum([resultados_modelos[modelo]['r2'] for modelo in resultados_modelos]) / len(resultados_modelos)) * 100:.1f}%")
-                st.metric("Erro Médio de Previsão", f"R$ {desvio_padrao:,.0f}")
+                col_config, _ = st.columns([1.1, 1.9])
+                with col_config:
+                    ajuste_slider = st.slider("Ajuste estratégico IA (%)", -15, 15, 5, key="ajuste_ia_slider")
+                    foco_plano = st.selectbox("Foco do plano", ["Balanceado", "Crescimento", "Eficiência"], index=0, key="foco_ia_cenario")
+                    foco_adjust_map = {"Balanceado": 0.0, "Crescimento": 0.03, "Eficiência": -0.03}
+                    ajuste_percentual = (ajuste_slider / 100.0) + foco_adjust_map.get(foco_plano, 0.0)
+                    st.metric("Volatilidade Média IA", f"{volatilidade_percentual:.1f}%" if volatilidade_percentual else "N/A")
+                    st.caption("Ajustes positivos tornam os cenários mais agressivos; negativos priorizam eficiência e defesa.")
                 
-                st.markdown("""
-                **Modelos Utilizados:**
-                - Regressão Linear
-                - Random Forest
-                - Média Combinada
-                """)
+                cenarios_ia = gerar_cenarios_preditivos_ia(df_previsoes, volatilidade_base, ajuste_percentual)
                 
-                # Métricas dos modelos individuais
-                for nome, resultado in resultados_modelos.items():
-                    with st.expander(f"Métricas {nome}"):
-                        st.metric("R²", f"{resultado['r2']:.3f}")
-                        st.metric("MAE", f"R$ {resultado['mae']:,.0f}")
-        else:
-            st.warning("Não há dados suficientes para gerar previsões. São necessários pelo menos 3 meses de dados históricos.")
-        
-        # ANÁLISE DE TENDÊNCIA
-        st.subheader("Análise de Tendência")
-        
-        if analise_tendencia:
-            col1, col2, col3, col4 = st.columns(4)
+                if cenarios_ia:
+                    grid_html = "<div class='scenario-grid'>"
+                    for cenario in cenarios_ia:
+                        delta = cenario['delta_total']
+                        delta_class = "scenario-card__delta--positive" if delta >= 0 else "scenario-card__delta--negative"
+                        delta_symbol = "▲" if delta >= 0 else "▼"
+                        grid_html += f"""
+                        <div class="scenario-card">
+                            <div class="scenario-card__icon">{cenario['emoji']}</div>
+                            <div class="scenario-card__title">{cenario['nome']}</div>
+                            <div class="scenario-card__value">R$ {cenario['total']:,.0f}</div>
+                            <div class="scenario-card__delta {delta_class}">{delta_symbol} {abs(delta):.1f}% vs base</div>
+                            <p class="scenario-card__description">{cenario['descricao']}</p>
+                        </div>
+                        """
+                    grid_html += "</div>"
+                    st.markdown(grid_html, unsafe_allow_html=True)
+
+                    df_cenarios = preparar_dataframe_cenarios(df_previsoes, cenarios_ia)
+                    if not df_cenarios.empty:
+                        fig_cenarios = px.line(
+                            df_cenarios,
+                            x='Mês',
+                            y='Receita Cenário',
+                            color='Cenário',
+                            markers=True,
+                            title="Trajetórias projetadas por cenário IA"
+                        )
+                        fig_cenarios.update_traces(mode='lines+markers')
+                        fig_cenarios = configurar_layout_clean(fig_cenarios, "Trajetórias projetadas por cenário IA", show_labels=False)
+                        render_plotly_chart(fig_cenarios)
+
+                    melhor = max(cenarios_ia, key=lambda c: c['delta_total'])
+                    pior = min(cenarios_ia, key=lambda c: c['delta_total'])
+                    st.info(
+                        f"IA sugere priorizar **{melhor['nome']}** ({melhor['delta_total']:+.1f}%) e manter planos de contingência para **{pior['nome']}** ({pior['delta_total']:+.1f}%)."
+                    )
+                else:
+                    st.warning("Não foi possível gerar cenários. Verifique se a base de previsões possui valores válidos.")
+
+        with section_card():
+            st.subheader("Análise de Tendência")
             
-            with col1:
-                st.metric("Crescimento Total", f"{analise_tendencia['crescimento_total']:.1f}%")
-            
-            with col2:
-                st.metric("Volatilidade", f"{analise_tendencia['volatilidade']:.1f}%")
-            
-            with col3:
-                st.metric("Correlação Sazonal", f"{analise_tendencia['correlacao_sazonal']:.2f}")
-            
-            with col4:
-                st.metric("Média Móvel 3M", f"R$ {analise_tendencia['media_3m']:,.0f}")
-            
-            # Gráfico de tendência COM RÓTULOS
-            fig_tendencia = go.Figure()
-            
-            fig_tendencia.add_trace(go.Scatter(
-                x=analise_tendencia['dados']['Mês'],
-                y=analise_tendencia['dados']['Receita Bruta'],
-                mode='lines+markers',
-                name='Receita Bruta',
-                line=dict(color=COLORS['primary'], width=3)
-            ))
-            
-            if 'Media_Movel_3M' in analise_tendencia['dados'].columns:
+            if analise_tendencia:
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Crescimento Total", f"{analise_tendencia['crescimento_total']:.1f}%")
+                
+                with col2:
+                    st.metric("Volatilidade", f"{analise_tendencia['volatilidade']:.1f}%")
+                
+                with col3:
+                    st.metric("Correlação Sazonal", f"{analise_tendencia['correlacao_sazonal']:.2f}")
+                
+                with col4:
+                    st.metric("Média Móvel 3M", f"R$ {analise_tendencia['media_3m']:,.0f}")
+                
+                fig_tendencia = go.Figure()
                 fig_tendencia.add_trace(go.Scatter(
                     x=analise_tendencia['dados']['Mês'],
-                    y=analise_tendencia['dados']['Media_Movel_3M'],
-                    mode='lines',
-                    name='Média Móvel 3M',
-                    line=dict(color=COLORS['warning'], width=2, dash='dash')
+                    y=analise_tendencia['dados']['Receita Bruta'],
+                    mode='lines+markers',
+                    name='Receita Bruta',
+                    line=dict(color=COLORS['primary'], width=3)
                 ))
+                
+                if 'Media_Movel_3M' in analise_tendencia['dados'].columns:
+                    fig_tendencia.add_trace(go.Scatter(
+                        x=analise_tendencia['dados']['Mês'],
+                        y=analise_tendencia['dados']['Media_Movel_3M'],
+                        mode='lines',
+                        name='Média Móvel 3M',
+                        line=dict(color=COLORS['warning'], width=2, dash='dash')
+                    ))
+                
+                fig_tendencia = configurar_layout_clean(fig_tendencia, "Análise de Tendência e Sazonalidade", show_labels=True)
+                render_plotly_chart(fig_tendencia)
+            else:
+                st.info("Ainda não foi possível calcular a tendência para o período selecionado.")
+
+        with section_card():
+            st.subheader("Insights e Alertas Estratégicos")
             
-            fig_tendencia = configurar_layout_clean(fig_tendencia, "Análise de Tendência e Sazonalidade", show_labels=True)
-            render_plotly_chart(fig_tendencia)
-        
-        # INSIGHTS ESTRATÉGICOS
-        st.subheader("Insights Estratégicos")
-        
-        if kpis_avancados:
-            col1, col2 = st.columns(2)
+            correlacao_sazonal = analise_tendencia['correlacao_sazonal'] if analise_tendencia and 'correlacao_sazonal' in analise_tendencia else 0
             
-            with col1:
-                st.markdown(f"""
-                <div class="matriz-stats">
-                    <h4>Performance Financeira</h4>
-                    <ul>
-                        <li><strong>Eficiência Marketing:</strong> R$ {kpis_avancados.get('receita_liquida_total', 0):,.0f} / R$ {kpis_avancados.get('investimento_total', 0):,.0f} = {kpis_avancados.get('eficiencia_marketing', 0):.2f}</li>
-                        <li><strong>ROI Médio:</strong> {kpis_avancados.get('roi_medio', 0):.1f}%</li>
-                        <li><strong>LTV/CAC Ratio:</strong> {kpis_avancados.get('ltv_cac_ratio', 0):.2f}</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
+            if kpis_avancados:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="matriz-stats">
+                        <h4>Performance Financeira</h4>
+                        <ul>
+                            <li><strong>Eficiência Marketing:</strong> R$ {kpis_avancados.get('receita_liquida_total', 0):,.0f} / R$ {kpis_avancados.get('investimento_total', 0):,.0f} = {kpis_avancados.get('eficiencia_marketing', 0):.2f}</li>
+                            <li><strong>ROI Médio:</strong> {kpis_avancados.get('roi_medio', 0):.1f}%</li>
+                            <li><strong>LTV/CAC Ratio:</strong> {kpis_avancados.get('ltv_cac_ratio', 0):.2f}</li>
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="matriz-stats">
+                        <h4>Recomendações</h4>
+                        <ul>
+                            <li>{'✅ Manter estratégia atual' if kpis_avancados.get('ltv_cac_ratio', 0) > 1 else '⚠️ Otimizar aquisição'}</li>
+                            <li>{'📈 Expandir investimento' if kpis_avancados.get('roi_medio', 0) > 100 else '🎯 Focar em eficiência'}</li>
+                            <li>{'🔍 Analisar sazonalidade' if abs(correlacao_sazonal) > 0.5 else '📊 Manter monitoramento'}</li>
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("Carregue dados consistentes para visualizar recomendações estratégicas.")
             
-            with col2:
-                st.markdown(f"""
-                <div class="matriz-stats">
-                    <h4>Recomendações</h4>
-                    <ul>
-                        <li>{'✅ Manter estratégia atual' if kpis_avancados.get('ltv_cac_ratio', 0) > 1 else '⚠️ Otimizar aquisição'}</li>
-                        <li>{'📈 Expandir investimento' if kpis_avancados.get('roi_medio', 0) > 100 else '🎯 Focar em eficiência'}</li>
-                        <li>{'🔍 Analisar sazonalidade' if abs(analise_tendencia['correlacao_sazonal']) > 0.5 else '📊 Manter monitoramento'}</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # ALERTAS E OPORTUNIDADES
-        st.subheader("Alertas e Oportunidades")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if kpis_avancados and kpis_avancados.get('volatilidade_receita', 0) > 30:
-                st.error("**ALERTA:** Alta volatilidade na receita. Recomenda-se investigar causas.")
-            elif kpis_avancados:
-                st.success("**ESTÁVEL:** Baixa volatilidade na receita.")
+            col_alerta1, col_alerta2 = st.columns(2)
             
-            if kpis_avancados and kpis_avancados.get('crescimento_receita', 0) < 0:
-                st.warning("**ATENÇÃO:** Receita em declínio. Avaliar estratégias.")
-            elif kpis_avancados and kpis_avancados.get('crescimento_receita', 0) > 20:
-                st.success("**CRESCIMENTO:** Receita em forte expansão.")
-        
-        with col2:
-            if kpis_avancados and kpis_avancados.get('ltv_cac_ratio', 0) < 1:
-                st.error("**CRÍTICO:** LTV menor que CAC. Revisar urgentemente estratégia de aquisição.")
-            elif kpis_avancados and kpis_avancados.get('ltv_cac_ratio', 0) > 3:
-                st.success("**EXCELENTE:** LTV significativamente maior que CAC. Pode-se aumentar investimento.")
+            with col_alerta1:
+                if kpis_avancados:
+                    if kpis_avancados.get('volatilidade_receita', 0) > 30:
+                        st.error("**ALERTA:** Alta volatilidade na receita. Recomenda-se investigar causas.")
+                    else:
+                        st.success("**ESTÁVEL:** Baixa volatilidade na receita.")
+                    
+                    if kpis_avancados.get('crescimento_receita', 0) < 0:
+                        st.warning("**ATENÇÃO:** Receita em declínio. Avaliar estratégias.")
+                    elif kpis_avancados.get('crescimento_receita', 0) > 20:
+                        st.success("**CRESCIMENTO:** Receita em forte expansão.")
+                else:
+                    st.info("Sem dados suficientes para avaliar volatilidade e crescimento.")
+            
+            with col_alerta2:
+                if kpis_avancados:
+                    if kpis_avancados.get('ltv_cac_ratio', 0) < 1:
+                        st.error("**CRÍTICO:** LTV menor que CAC. Revisar urgentemente estratégia de aquisição.")
+                    elif kpis_avancados.get('ltv_cac_ratio', 0) > 3:
+                        st.success("**EXCELENTE:** LTV significativamente maior que CAC. Pode-se aumentar investimento.")
+                else:
+                    st.info("Aguardando indicadores de LTV/CAC para gerar alertas.")
     
     with tab5:  # NOVA ABA PARA ANÁLISES AVANÇADAS
         st.markdown(f'<div class="section-header"><h2 class="section-title">Análises Avançadas e Segmentação</h2><p class="section-subtitle">Insights profundos com machine learning e estatística</p></div>', unsafe_allow_html=True)
