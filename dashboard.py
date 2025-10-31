@@ -2581,36 +2581,74 @@ def main_dashboard():
     .insights-marquee {{
         position: relative;
         overflow: hidden;
-        border-radius: 16px;
-        border: 1px solid {COLORS['border']}33;
-        background: linear-gradient(135deg, {COLORS['paper_bg']}, {COLORS['light_gray']}40);
-        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
-        padding: 0.7rem 0;
-        margin: 1.2rem 0 1.6rem;
+        border-radius: 18px;
+        border: 1px solid {COLORS['border']}30;
+        background: linear-gradient(120deg, {COLORS['paper_bg']}, {COLORS['light_gray']}44);
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+        padding: 0.85rem 0;
+        margin: 1.3rem 0 1.7rem;
+        backdrop-filter: blur(6px);
+    }}
+
+    .insights-marquee::before,
+    .insights-marquee::after {{
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 70px;
+        pointer-events: none;
+        z-index: 2;
+    }}
+
+    .insights-marquee::before {{
+        left: 0;
+        background: linear-gradient(90deg, {COLORS['paper_bg']}ff 0%, rgba(255,255,255,0));
+    }}
+
+    .insights-marquee::after {{
+        right: 0;
+        background: linear-gradient(270deg, {COLORS['paper_bg']}ff 0%, rgba(255,255,255,0));
     }}
 
     .insights-marquee__track {{
         display: flex;
-        width: max-content;
-        gap: 2.4rem;
         align-items: center;
-        animation: marqueeScroll 26s linear infinite;
+        gap: 2.6rem;
+        width: max-content;
+        animation: marqueeScroll 32s linear infinite;
+        padding: 0 2rem;
     }}
 
     .insights-marquee__item {{
         display: inline-flex;
         align-items: center;
-        gap: 0.55rem;
-        font-weight: 500;
-        color: {COLORS['text_primary']}cc;
+        gap: 0.6rem;
         white-space: nowrap;
+        color: {COLORS['text_primary']}d9;
+        font-weight: 500;
+        letter-spacing: 0.01em;
     }}
 
-    .insights-marquee__item::before {{
-        content: "•";
-        font-size: 0.8rem;
-        color: {COLORS['primary']};
-        opacity: 0.8;
+    .insights-marquee__bullet {{
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
+        box-shadow: 0 0 8px {COLORS['primary']}66;
+    }}
+
+    .insights-marquee__label {{
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.72rem;
+        color: {COLORS['text_secondary']};
+    }}
+
+    .insights-marquee__value {{
+        font-size: 1rem;
+        font-weight: 700;
+        color: {COLORS['text_primary']};
     }}
 
     @keyframes marqueeScroll {{
@@ -2825,9 +2863,25 @@ def main_dashboard():
             if top_lp_nome and top_lp_nome != "N/A":
                 insights.append(f"LP de destaque: {top_lp_nome}")
             if insights:
-                marquee_html = "".join(
-                    f"<span class='insights-marquee__item'>{texto}</span>" for texto in insights
-                )
+                marquee_items = []
+                for texto in insights:
+                    titulo, sep, valor = texto.partition(':')
+                    if sep:
+                        marquee_items.append(
+                            f"<span class='insights-marquee__item'>"
+                            f"<span class='insights-marquee__bullet'></span>"
+                            f"<span class='insights-marquee__label'>{titulo.strip()}</span>"
+                            f"<span class='insights-marquee__value'>{valor.strip()}</span>"
+                            f"</span>"
+                        )
+                    else:
+                        marquee_items.append(
+                            f"<span class='insights-marquee__item'>"
+                            f"<span class='insights-marquee__bullet'></span>"
+                            f"<span class='insights-marquee__value'>{texto}</span>"
+                            f"</span>"
+                        )
+                marquee_html = "".join(marquee_items)
                 st.markdown(
                     f"<div class='insights-marquee animate-fade-up'><div class='insights-marquee__track'>{marquee_html}{marquee_html}</div></div>",
                     unsafe_allow_html=True
