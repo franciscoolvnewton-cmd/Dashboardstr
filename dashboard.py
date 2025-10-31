@@ -2577,6 +2577,47 @@ def main_dashboard():
         background: {COLORS['gradient_3']};
     }}
     
+    /* Letreiro de insights */
+    .insights-marquee {{
+        position: relative;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid {COLORS['border']}33;
+        background: linear-gradient(135deg, {COLORS['paper_bg']}, {COLORS['light_gray']}40);
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
+        padding: 0.7rem 0;
+        margin: 1.2rem 0 1.6rem;
+    }}
+
+    .insights-marquee__track {{
+        display: flex;
+        width: max-content;
+        gap: 2.4rem;
+        align-items: center;
+        animation: marqueeScroll 26s linear infinite;
+    }}
+
+    .insights-marquee__item {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-weight: 500;
+        color: {COLORS['text_primary']}cc;
+        white-space: nowrap;
+    }}
+
+    .insights-marquee__item::before {{
+        content: "•";
+        font-size: 0.8rem;
+        color: {COLORS['primary']};
+        opacity: 0.8;
+    }}
+
+    @keyframes marqueeScroll {{
+        0% {{ transform: translateX(0); }}
+        100% {{ transform: translateX(-50%); }}
+    }}
+
     /* TABELAS */
     .dataframe th {{
         background-color: {COLORS['primary']};
@@ -2762,6 +2803,36 @@ def main_dashboard():
         st.markdown(f'<div class="section-header"><h2 class="section-title">Visão Geral do Performance</h2><p class="section-subtitle">Métricas consolidadas e tendências do período</p></div>', unsafe_allow_html=True)
         
         if not receita_mensal.empty:
+            receita_total_bruta = receita_mensal['Receita Bruta'].sum()
+            receita_total_liquida = receita_mensal['Receita Líquida'].sum()
+            crescimento = kpis_avancados.get('crescimento_receita', 0) if kpis_avancados else 0
+            volatilidade = kpis_avancados.get('volatilidade_receita', 0) if kpis_avancados else 0
+            roi_geral = kpis_avancados.get('roi_medio', 0) if kpis_avancados else 0
+            total_tutores = int(novos_tutores_mes['Novos Tutores'].sum()) if not novos_tutores_mes.empty else 0
+            top_lp_nome = leads_por_lp.iloc[0]['LP'] if not leads_por_lp.empty else "N/A"
+            insights = [
+                f"Receita Bruta Total: R$ {receita_total_bruta:,.0f}",
+                f"Receita Líquida Total: R$ {receita_total_liquida:,.0f}"
+            ]
+            if crescimento:
+                insights.append(f"Crescimento acumulado: {crescimento:+.1f}%")
+            if roi_geral:
+                insights.append(f"ROI médio: {roi_geral:.1f}%")
+            if volatilidade:
+                insights.append(f"Volatilidade da receita: {volatilidade:.1f}%")
+            if total_tutores:
+                insights.append(f"Novos tutores no período: {total_tutores:,}")
+            if top_lp_nome and top_lp_nome != "N/A":
+                insights.append(f"LP de destaque: {top_lp_nome}")
+            if insights:
+                marquee_html = "".join(
+                    f"<span class='insights-marquee__item'>{texto}</span>" for texto in insights
+                )
+                st.markdown(
+                    f"<div class='insights-marquee animate-fade-up'><div class='insights-marquee__track'>{marquee_html}{marquee_html}</div></div>",
+                    unsafe_allow_html=True
+                )
+
             # Resumo das outras abas
             with section_card():
                 st.subheader("Resumo das Análises")
@@ -2796,50 +2867,47 @@ def main_dashboard():
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    receita_total_bruta = receita_mensal['Receita Bruta'].sum()
                     st.metric(
                         "Receita Bruta Total", 
                         f"R$ {receita_total_bruta:,.0f}"
                     )
                 
                 with col2:
-                    receita_total_liquida = receita_mensal['Receita Líquida'].sum()
                     st.metric(
                         "Receita Líquida Total", 
                         f"R$ {receita_total_liquida:,.0f}"
                     )
                 
                 with col3:
-                    total_tutores = novos_tutores_mes['Novos Tutores'].sum()
                     st.metric(
                         "Total Novos Tutores", 
                         f"{total_tutores:,}"
                     )
                 
                 with col4:
-                    if not cohort_data.empty:
-                        cac_medio = cohort_data[cohort_data['CAC'] > 0]['CAC'].mean()
+                    cac_medio = cohort_data[cohort_data['CAC'] > 0]['CAC'].mean() if not cohort_data.empty else 0
+                    if cac_medio:
                         st.metric(
                             "CAC Médio", 
                             f"R$ {cac_medio:,.0f}"
                         )
-
+                
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    if not cohort_data.empty:
-                        ltv_medio = cohort_data[cohort_data['LTV'] > 0]['LTV'].mean()
+                    ltv_medio = cohort_data[cohort_data['LTV'] > 0]['LTV'].mean() if not cohort_data.empty else 0
+                    if ltv_medio:
                         st.metric(
                             "LTV Médio", 
                             f"R$ {ltv_medio:,.0f}"
                         )
                 
                 with col2:
-                    if not cohort_data.empty:
-                        roi_medio = cohort_data[cohort_data['ROI (%)'] != 0]['ROI (%)'].mean()
+                    roi_medio_cohort = cohort_data[cohort_data['ROI (%)'] != 0]['ROI (%)'].mean() if not cohort_data.empty else 0
+                    if roi_medio_cohort:
                         st.metric(
                             "ROI Médio", 
-                            f"{roi_medio:.1f}%"
+                            f"{roi_medio_cohort:.1f}%"
                         )
                 
                 with col3:
