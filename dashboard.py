@@ -1944,13 +1944,102 @@ def configurar_heatmap(fig, titulo="", colorbar_titulo="Valor"):
     return fig
 
 
-def render_plotly_chart(fig, key=None, use_container_width=True):
+def render_plotly_chart(fig, key=None, use_container_width=True, config=None):
     """Aplica wrapper visual sem interferir nos controles padrão do Plotly."""
     if fig is None:
         return
+    default_config = {
+        "displaylogo": False,
+        "responsive": True,
+        "scrollZoom": True,
+        "modeBarButtonsToAdd": ["fullscreen"]
+    }
+    if config:
+        final_config = default_config.copy()
+        if "modeBarButtonsToAdd" in config and config["modeBarButtonsToAdd"] is not None:
+            final_config["modeBarButtonsToAdd"] = list(
+                dict.fromkeys(default_config["modeBarButtonsToAdd"] + list(config["modeBarButtonsToAdd"]))
+            )
+            config = {k: v for k, v in config.items() if k != "modeBarButtonsToAdd"}
+        final_config.update(config)
+    else:
+        final_config = default_config
+
     st.markdown('<div class="chart-shell animate-fade-up">', unsafe_allow_html=True)
-    st.plotly_chart(fig, use_container_width=use_container_width, key=key)
+    st.plotly_chart(fig, use_container_width=use_container_width, key=key, config=final_config)
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+def gerar_insights_ia(receita_mensal, kpis_avancados, metricas_avancadas_lp, analise_tendencia, analise_clusters_data):
+    """Produz frases de alto nível simulando análises de IA."""
+    insights = []
+
+    try:
+        if receita_mensal is not None and not receita_mensal.empty:
+            dados_receita = receita_mensal.copy()
+            if 'Mês_Ordenado' in dados_receita.columns:
+                dados_receita = dados_receita.sort_values('Mês_Ordenado')
+
+            if len(dados_receita) >= 2:
+                ultimo = dados_receita.iloc[-1]
+                penultimo = dados_receita.iloc[-2]
+                receita_penultimo = penultimo['Receita Bruta']
+                receita_ultimo = ultimo['Receita Bruta']
+                if receita_penultimo > 0:
+                    variacao = ((receita_ultimo - receita_penultimo) / receita_penultimo) * 100
+                    insights.append(
+                        f"IA detectou variação de {variacao:+.1f}% na receita de {penultimo['Mês']} para {ultimo['Mês']}."
+                    )
+
+        if kpis_avancados:
+            ltv_cac = kpis_avancados.get('ltv_cac_ratio')
+            if ltv_cac is not None and ltv_cac > 0:
+                if ltv_cac >= 3:
+                    insights.append("IA classifica o equilíbrio LTV/CAC como excelente para expansão.")
+                elif ltv_cac >= 1:
+                    insights.append("IA aponta relação LTV/CAC saudável, com margem para ganhos adicionais.")
+                else:
+                    insights.append("IA sinaliza alerta: LTV abaixo do CAC reduz sustentabilidade.")
+
+            volatilidade = kpis_avancados.get('volatilidade_receita')
+            if volatilidade is not None:
+                if volatilidade > 35:
+                    insights.append("IA recomenda plano de estabilização: volatilidade de receita elevada.")
+                elif volatilidade < 15:
+                    insights.append("IA destaca estabilidade na geração de receita mês a mês.")
+
+        if metricas_avancadas_lp is not None and not metricas_avancadas_lp.empty:
+            top_lp = metricas_avancadas_lp.iloc[0]
+            insights.append(
+                f"IA destaca a LP {top_lp.name} como líder em performance (score {top_lp['Score_Performance']:.1f})."
+            )
+
+        if analise_tendencia:
+            crescimento_total = analise_tendencia.get('crescimento_total')
+            if crescimento_total is not None:
+                if crescimento_total > 20:
+                    insights.append("IA projeta tendência positiva: crescimento acumulado supera 20%.")
+                elif crescimento_total < 0:
+                    insights.append("IA alerta retração na curva de receita: crescimento acumulado negativo.")
+
+        if analise_clusters_data and analise_clusters_data.get('analise_clusters') is not None:
+            clusters_df = analise_clusters_data['analise_clusters']
+            if clusters_df is not None and not clusters_df.empty and 'Eficiencia' in clusters_df.columns:
+                cluster_top = clusters_df['Eficiencia'].idxmax()
+                eficiencia = clusters_df.loc[cluster_top, 'Eficiencia']
+                insights.append(
+                    f"IA identifica o Cluster {cluster_top} como benchmark com eficiência média {eficiencia:.2f}."
+                )
+
+        insights = [texto for texto in insights if texto]
+
+        if not insights:
+            insights.append("IA aguardando dados suficientes para gerar insights dinâmicos.")
+
+    except Exception:
+        insights = ["IA encontrou dificuldades para analisar os dados atuais."]
+
+    return insights[:5]
 
 
 @contextmanager
@@ -2616,6 +2705,69 @@ def main_dashboard():
     ::-webkit-scrollbar-thumb:hover {{
         background: {COLORS['primary_light']};
     }}
+
+    /* Letreiro Inteligente */
+    .insights-marquee {{
+        position: relative;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid {COLORS['border']}33;
+        background: linear-gradient(135deg, {COLORS['background']}, {COLORS['light_gray']}40);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+        padding: 0.7rem 0;
+        margin: 1.2rem 0 1.4rem;
+    }}
+
+    .insights-marquee--ai {{
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(16, 185, 129, 0.18));
+        border-color: {COLORS['primary']}40;
+        box-shadow: 0 18px 38px rgba(37, 99, 235, 0.18);
+    }}
+
+    .insights-marquee__track {{
+        display: flex;
+        width: max-content;
+        gap: 2.4rem;
+        align-items: center;
+        animation: marqueeScroll 28s linear infinite;
+    }}
+
+    .insights-marquee__item {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        white-space: nowrap;
+        font-weight: 500;
+        color: {COLORS['text_primary']}dd;
+    }}
+
+    .insights-marquee__badge {{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 0.6rem;
+        height: 1.4rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_light']});
+        color: {COLORS['white']};
+        box-shadow: 0 6px 14px rgba(37, 99, 235, 0.25);
+    }}
+
+    .insights-marquee__symbol {{
+        font-size: 0.6rem;
+        color: {COLORS['primary']};
+        opacity: 0.8;
+        margin-right: 0.3rem;
+    }}
+
+    @keyframes marqueeScroll {{
+        0% {{ transform: translateX(0); }}
+        100% {{ transform: translateX(-50%); }}
+    }}
     
     @media (max-width: 1200px) {{
         .heatmap-grid {{
@@ -2682,6 +2834,10 @@ def main_dashboard():
         analise_clusters = st.checkbox("Segmentação por Clusters", value=True)
         analise_impacto = st.checkbox("Análise de Impacto do Investimento", value=True)
     
+    analise_sazonal_data = None
+    analise_impacto_data = None
+    analise_clusters_data = None
+
     # Processar dados
     with st.spinner(f"Calculando métricas avançadas para {ano_selecionado}..."):
         receita_mensal, df_filtrado = calcular_receita_mensal(df, ano_filtro=ano_selecionado)
@@ -2741,6 +2897,23 @@ def main_dashboard():
         st.markdown(f'<div class="section-header"><h2 class="section-title">Visão Geral do Performance</h2><p class="section-subtitle">Métricas consolidadas e tendências do período</p></div>', unsafe_allow_html=True)
         
         if not receita_mensal.empty:
+            insights_ia = gerar_insights_ia(
+                receita_mensal,
+                kpis_avancados,
+                metricas_avancadas_lp,
+                analise_tendencia,
+                analise_clusters_data
+            )
+            if insights_ia:
+                insights_html = "".join(
+                    f"<span class='insights-marquee__item'><span class='insights-marquee__badge'>IA</span><span class='insights-marquee__symbol'>&bull;</span>{texto}</span>"
+                    for texto in insights_ia
+                )
+                st.markdown(
+                    f"<div class='insights-marquee insights-marquee--ai animate-fade-up'><div class='insights-marquee__track'>{insights_html}{insights_html}</div></div>",
+                    unsafe_allow_html=True
+                )
+
             # Resumo das outras abas
             with section_card():
                 st.subheader("Resumo das Análises")
