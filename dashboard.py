@@ -45,6 +45,10 @@ def setup_plotly_template():
     return template_light, template_dark
 
 TEMPLATE_LIGHT, TEMPLATE_DARK = setup_plotly_template()
+pio.templates["veros_light"] = TEMPLATE_LIGHT
+pio.templates["veros_dark"] = TEMPLATE_DARK
+pio.templates.default = "veros_light"
+px.defaults.template = "veros_light"
 
 # Configuração da página
 st.set_page_config(
@@ -100,7 +104,8 @@ def obter_cores_por_tema(tema):
             'gradient_1': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             'gradient_2': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
             'gradient_3': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            'gradient_4': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+            'gradient_4': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'palette': ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#f97316', '#facc15']
         }
     else:
         return {
@@ -131,7 +136,8 @@ def obter_cores_por_tema(tema):
             'gradient_1': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             'gradient_2': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
             'gradient_3': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            'gradient_4': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+            'gradient_4': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'palette': ['#2563eb', '#059669', '#f97316', '#dc2626', '#7c3aed', '#14b8a6', '#facc15', '#6366f1']
         }
 
 # Inicializar tema e cores
@@ -140,6 +146,19 @@ if 'detected_theme' not in st.session_state:
 
 TEMA_ATUAL = st.session_state.detected_theme
 COLORS = obter_cores_por_tema(TEMA_ATUAL)
+
+def aplicar_tema_plotly():
+    """Atualiza tema padrão do Plotly para combinar com o tema atual do dashboard."""
+    template_name = "veros_dark" if TEMA_ATUAL == 'dark' else "veros_light"
+    pio.templates.default = template_name
+    px.defaults.template = template_name
+    palette = COLORS.get('palette')
+    if palette:
+        px.defaults.color_discrete_sequence = palette
+    else:
+        px.defaults.color_discrete_sequence = px.colors.qualitative.D3
+
+aplicar_tema_plotly()
 
 # =============================================
 # DADOS FIXOS
@@ -549,6 +568,83 @@ def calcular_metricas_avancadas_lp(df, ano_filtro=2025):
     except Exception as e:
         st.error(f"Erro no cálculo de métricas avançadas por LP: {e}")
         return pd.DataFrame()
+
+
+def calcular_importancias_investimento(analise_impacto_data):
+    """Treina um modelo supervisionado para medir a importância de cada variável na geração de receita."""
+    if not analise_impacto_data:
+        return pd.DataFrame()
+
+    dados = analise_impacto_data.get('dados')
+    if dados is None or dados.empty:
+        return pd.DataFrame()
+
+    features = ['Investimento', 'Novos Tutores', 'Receita Líquida']
+    colunas_disponiveis = [col for col in features + ['Receita Bruta'] if col in dados.columns]
+    if len(colunas_disponiveis) < 4:
+        return pd.DataFrame()
+
+    df_modelo = dados[colunas_disponiveis].dropna()
+    if df_modelo.empty or len(df_modelo) < 4:
+        return pd.DataFrame()
+
+    target = 'Receita Bruta'
+    features_utilizadas = [col for col in features if col in df_modelo.columns]
+    if target not in df_modelo.columns or not features_utilizadas:
+        return pd.DataFrame()
+
+    modelo = GradientBoostingRegressor(random_state=42)
+    modelo.fit(df_modelo[features_utilizadas], df_modelo[target])
+
+    importancias = pd.DataFrame({
+        'Variável': features_utilizadas,
+        'Importância': modelo.feature_importances_
+    }).sort_values('Importância', ascending=False)
+    importancias['Importância (%)'] = importancias['Importância'] * 100
+    return importancias
+
+
+def gerar_recomendacoes_ml(metricas_lp, cluster_resumo, df_previsoes, importancias, kpis=None):
+    """Gera lista de recomendações estratégicas baseadas nas análises de machine learning."""
+    insights = []
+
+    if metricas_lp is not None and not metricas_lp.empty:
+        top_lp = metricas_lp.iloc[0]
+        insights.append(
+            f"Priorizar investimento na LP **{top_lp.name}**: ROI {top_lp['ROI']:.1f}% e eficiência {top_lp['Eficiencia']:.2f}."
+        )
+        if len(metricas_lp) > 1:
+            lp_otimizar = metricas_lp.tail(1).iloc[0]
+            insights.append(
+                f"Otimizar campanha da LP **{lp_otimizar.name}**: ROI atual {lp_otimizar['ROI']:.1f}% e eficiência {lp_otimizar['Eficiencia']:.2f}."
+            )
+
+    if cluster_resumo is not None and not cluster_resumo.empty:
+        cluster_top = cluster_resumo['Eficiencia'].idxmax()
+        cluster_dados = cluster_resumo.loc[cluster_top]
+        insights.append(
+            f"Replicar práticas do Cluster **{cluster_top}** (eficiência {cluster_dados['Eficiencia']:.2f}) para elevar ROI em outros períodos."
+        )
+
+    if importancias is not None and not importancias.empty:
+        driver = importancias.iloc[0]
+        insights.append(
+            f"Principal driver de receita identificado: **{driver['Variável']}** (importância {driver['Importância (%)']:.1f}%)."
+        )
+
+    if df_previsoes is not None and not df_previsoes.empty:
+        proxima_prev = df_previsoes.iloc[0]
+        insights.append(
+            f"Previsão de receita bruta para o próximo ciclo: **R$ {proxima_prev['Receita Bruta Prevista']:,.0f}** "
+            f"(Receita líquida estimada R$ {proxima_prev['Receita Líquida Prevista']:,.0f})."
+        )
+
+    if kpis:
+        roi_medio = kpis.get('roi_medio')
+        if roi_medio:
+            insights.append(f"ROI médio consolidado: **{roi_medio:.1f}%** — ajustar aquisições para manter o índice acima de 100%.")
+
+    return insights
 
 # =============================================
 # FUNÇÕES DE ANÁLISE PREDITIVA AVANÇADA
@@ -1815,7 +1911,8 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
             ),
             hovermode='x unified',
             width=width,
-            height=height
+            height=height,
+            colorway=COLORS.get('palette', px.colors.qualitative.D3)
         )
     else:
         # Configuração padrão
@@ -1852,7 +1949,8 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
             ),
             hovermode='x unified',
             width=width,
-            height=height
+            height=height,
+            colorway=COLORS.get('palette', px.colors.qualitative.D3)
         )
 
     # Ajustes finos dos eixos
@@ -1867,7 +1965,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                 marker_conf = dict(
                     color=marker_color,
                     opacity=0.9,
-                    line=dict(width=0)
+                    line=dict(width=1.2, color=COLORS['background'])
                 )
                 if hasattr(trace.marker, "pattern") and getattr(trace.marker.pattern, "shape", None):
                     marker_conf["pattern"] = dict(shape=trace.marker.pattern.shape)
@@ -1883,7 +1981,7 @@ def configurar_layout_clean(fig, titulo="", width=800, height=500, fonte_maior=F
                     line=dict(width=max(trace.line.width if trace.line and trace.line.width else 2, 3)),
                     marker=dict(
                         size=8,
-                        line=dict(width=1.5, color=COLORS['paper_bg']),
+                        line=dict(width=2, color=COLORS['paper_bg']),
                         symbol="circle",
                         opacity=0.95
                     ),
@@ -2335,6 +2433,7 @@ def main_dashboard():
     global TEMA_ATUAL, COLORS
     TEMA_ATUAL = detectar_tema_navegador()
     COLORS = obter_cores_por_tema(TEMA_ATUAL)
+    aplicar_tema_plotly()
     
     # Configuração CSS completa com animações
     st.markdown(f"""
@@ -2925,14 +3024,23 @@ def main_dashboard():
             analise_clusters_data = criar_analise_clusters(df, ano_selecionado)
         
         metricas_avancadas_lp = calcular_metricas_avancadas_lp(df, ano_selecionado)
+        importancias_ml = calcular_importancias_investimento(analise_impacto_data)
+        cluster_resumo = (
+            analise_clusters_data.get('analise_clusters')
+            if isinstance(analise_clusters_data, dict) and analise_clusters_data.get('analise_clusters') is not None
+            else pd.DataFrame()
+        )
+        recomendacoes_ml = gerar_recomendacoes_ml(metricas_avancadas_lp, cluster_resumo, df_previsoes, importancias_ml, kpis_avancados)
     
     # SISTEMA DE ABAS COMPLETO
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "Visão Geral", 
         "Matrizes Escadinha",
         "LP Leads", 
         "Análise Preditiva",
-        "Análises Avançadas"
+        "Estratégias ML",
+        "Análises Avançadas",
+        "Relatório Mensal"
     ])
     
     with tab1:
@@ -3701,7 +3809,103 @@ def main_dashboard():
                 else:
                     st.info("Aguardando indicadores de LTV/CAC para gerar alertas.")
     
-    with tab5:  # NOVA ABA PARA ANÁLISES AVANÇADAS
+    with tab5:
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Estratégias com Machine Learning</h2><p class="section-subtitle">Recomendações automatizadas para direcionar investimento e performance</p></div>', unsafe_allow_html=True)
+
+        with section_card():
+            st.subheader("Recomendações Prioritárias")
+            if recomendacoes_ml:
+                itens = "".join(f"<li>{texto}</li>" for texto in recomendacoes_ml)
+                st.markdown(f"<ul>{itens}</ul>", unsafe_allow_html=True)
+            else:
+                st.info("Carregue dados completos para gerar recomendações personalizadas com machine learning.")
+
+        with section_card():
+            st.subheader("Indicadores de Ação")
+            col1, col2, col3 = st.columns(3)
+
+            if metricas_avancadas_lp is not None and not metricas_avancadas_lp.empty:
+                top_lp = metricas_avancadas_lp.iloc[0]
+                col1.metric("LP com maior ROI", top_lp.name, f"{top_lp['ROI']:.1f}% ROI")
+            else:
+                col1.metric("LP com maior ROI", "N/A")
+
+            if cluster_resumo is not None and not cluster_resumo.empty:
+                melhor_cluster = cluster_resumo['Eficiencia'].idxmax()
+                eficiencia_cluster = cluster_resumo.loc[melhor_cluster, 'Eficiencia']
+                col2.metric("Cluster mais eficiente", f"Cluster {melhor_cluster}", f"Eficiência {eficiencia_cluster:.2f}")
+            else:
+                col2.metric("Cluster mais eficiente", "N/A")
+
+            if df_previsoes is not None and not df_previsoes.empty:
+                prox_previsao = df_previsoes.iloc[0]
+                col3.metric("Receita Prevista (próx.)", f"R$ {prox_previsao['Receita Bruta Prevista']:,.0f}", f"Líquida R$ {prox_previsao['Receita Líquida Prevista']:,.0f}")
+            else:
+                col3.metric("Receita Prevista (próx.)", "N/A")
+
+        with section_card():
+            st.subheader("Drivers e Alavancas")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if importancias_ml is not None and not importancias_ml.empty:
+                    fig_importancias = px.bar(
+                        importancias_ml.sort_values('Importância'),
+                        x='Importância (%)',
+                        y='Variável',
+                        orientation='h',
+                        title="Importância das Variáveis (Gradient Boosting)",
+                        color='Importância (%)',
+                        color_continuous_scale='Blues'
+                    )
+                    fig_importancias = configurar_layout_clean(fig_importancias, "Importância das Variáveis", show_labels=False)
+                    render_plotly_chart(fig_importancias)
+                else:
+                    st.info("Aguardando dados suficientes para calcular a importância das variáveis.")
+
+            with col2:
+                if metricas_avancadas_lp is not None and not metricas_avancadas_lp.empty:
+                    top_lp_scores = metricas_avancadas_lp.reset_index()
+                    if 'index' in top_lp_scores.columns:
+                        top_lp_scores = top_lp_scores.rename(columns={'index': 'LP'})
+                    elif 'LP' not in top_lp_scores.columns:
+                        top_lp_scores = top_lp_scores.rename(columns={top_lp_scores.columns[0]: 'LP'})
+                    top_lp_scores = top_lp_scores[['LP', 'Score_Performance', 'ROI', 'Eficiencia']].head(6)
+                    fig_lp_scores = px.bar(
+                        top_lp_scores,
+                        x='LP',
+                        y='Score_Performance',
+                        color='ROI',
+                        title="Score de Performance por LP (Top 6)",
+                        text='Score_Performance',
+                        color_continuous_scale='Viridis'
+                    )
+                    fig_lp_scores = configurar_layout_clean(fig_lp_scores, "Score de Performance por LP", show_labels=False, fonte_maior=True)
+                    render_plotly_chart(fig_lp_scores)
+                else:
+                    st.info("Sem dados suficientes para exibir ranking de LPs.")
+
+        if analise_clusters_data and isinstance(analise_clusters_data, dict) and not analise_clusters_data.get('dados', pd.DataFrame()).empty:
+            with section_card():
+                st.subheader("Mapa de Oportunidades")
+                cluster_df = analise_clusters_data['dados']
+                fig_cluster_insights = px.scatter(
+                    cluster_df,
+                    x='Investimento',
+                    y='Receita Líquida',
+                    size='Receita Bruta',
+                    color='Cluster',
+                    hover_data=['Mês', 'Eficiencia', 'CAC'],
+                    title="Clusters - Investimento vs Receita Líquida",
+                    symbol='Cluster'
+                )
+                fig_cluster_insights = configurar_layout_clean(fig_cluster_insights, "Clusters de Performance", show_labels=False)
+                render_plotly_chart(fig_cluster_insights)
+        else:
+            with section_card():
+                st.info("Ainda não foi possível gerar clusters de performance para este período.")
+
+    with tab6:  # ABA DE ANÁLISES AVANÇADAS
         st.markdown(f'<div class="section-header"><h2 class="section-title">Análises Avançadas e Segmentação</h2><p class="section-subtitle">Insights profundos com machine learning e estatística</p></div>', unsafe_allow_html=True)
         
         # ANÁLISE DE SAZONALIDADE
@@ -3826,6 +4030,217 @@ def main_dashboard():
             radar_chart = criar_grafico_radar_performance(metricas_avancadas_lp)
             if radar_chart:
                 render_plotly_chart(radar_chart)
+
+    with tab7:
+        st.markdown(f'<div class="section-header"><h2 class="section-title">Relatório Mensal</h2><p class="section-subtitle">Resumo executivo com as principais métricas comerciais e de marketing</p></div>', unsafe_allow_html=True)
+
+        anos_disponiveis = [2025, 2024]
+        if ano_selecionado not in anos_disponiveis:
+            anos_disponiveis.insert(0, ano_selecionado)
+        anos_disponiveis = list(dict.fromkeys(anos_disponiveis))
+
+        ano_relatorio = st.selectbox(
+            "Selecione o ano do relatório:",
+            options=anos_disponiveis,
+            index=anos_disponiveis.index(2025) if 2025 in anos_disponiveis else 0,
+            key="ano_relatorio_mensal"
+        )
+
+        meses_relatorio = MESES_POR_ANO.get(ano_relatorio, [])
+        df_relatorio = filtrar_receita_base(df, ano=ano_relatorio, exigir_lead=True)
+        receita_relatorio, _ = calcular_receita_mensal(df, ano_relatorio)
+        novos_relatorio, _ = calcular_novos_tutores_mes(df, ano_relatorio)
+        cohort_relatorio = calcular_metricas_cohort(novos_relatorio, receita_relatorio, ano_relatorio)
+        leads_consolidado_relatorio = analisar_leads_consolidado_mes(df_leads, df, ano_relatorio)
+        leads_lp_relatorio = analisar_leads_por_lp(df_leads, df, ano_relatorio)
+        leads_lp_mensal_relatorio = analisar_leads_por_lp_mensal(df_leads, df, ano_relatorio)
+        matriz_relatorio, _ = criar_matriz_escadinha(df, ano_relatorio)
+        heatmap_relatorio = criar_heatmap_matriz(matriz_relatorio, f"Cohort Receita vs Lead - {ano_relatorio}", 'Blues', 550, 450)
+
+        mes_atual = None
+        mes_anterior = None
+        if leads_lp_mensal_relatorio is not None and not leads_lp_mensal_relatorio.empty:
+            meses_validos_lp = [m for m in meses_relatorio if m in leads_lp_mensal_relatorio['Mês'].unique()]
+            if meses_validos_lp:
+                mes_atual = meses_validos_lp[-1]
+            if len(meses_validos_lp) > 1:
+                mes_anterior = meses_validos_lp[-2]
+
+        receita_total_liq_rel = receita_relatorio['Receita Líquida'].sum() if not receita_relatorio.empty else 0
+        receita_total_bruta_rel = receita_relatorio['Receita Bruta'].sum() if not receita_relatorio.empty else 0
+        total_leads_relatorio = leads_consolidado_relatorio['Leads'].sum() if not leads_consolidado_relatorio.empty else 0
+        roas_medio_rel = leads_consolidado_relatorio['ROAS'].mean() if not leads_consolidado_relatorio.empty else 0
+        cac_medio_rel = leads_consolidado_relatorio['CAC'].mean() if not leads_consolidado_relatorio.empty else 0
+
+        with section_card():
+            st.subheader("Resumo Geral do Período")
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Receita Líquida", f"R$ {receita_total_liq_rel:,.0f}", f"Bruta R$ {receita_total_bruta_rel:,.0f}")
+            col2.metric("Leads Qualificados", f"{int(total_leads_relatorio):,}")
+            col3.metric("CAC Médio", f"R$ {cac_medio_rel:,.0f}")
+            col4.metric("ROAS Médio", f"{roas_medio_rel:.1f}%")
+
+        with section_card():
+            st.subheader(f"Receita Líquida Mensal - {ano_relatorio}")
+            if not receita_relatorio.empty:
+                fig_receita_liq_rel = px.bar(
+                    receita_relatorio,
+                    x='Mês',
+                    y='Receita Líquida',
+                    title=f"Evolução Mensal da Receita Líquida ({ano_relatorio})",
+                    text='Receita Líquida',
+                    color='Receita Líquida'
+                )
+                fig_receita_liq_rel = configurar_layout_clean(fig_receita_liq_rel, f"Receita Líquida Mensal - {ano_relatorio}", show_labels=False)
+                render_plotly_chart(fig_receita_liq_rel)
+            else:
+                st.info("Sem dados de receita para o período selecionado.")
+
+        with section_card():
+            st.subheader("Cohort Receita × Mês de Geração de Lead")
+            if heatmap_relatorio:
+                render_plotly_chart(heatmap_relatorio)
+            else:
+                st.info("Sem dados suficientes para montar a matriz cohort no período selecionado.")
+
+        bu_col = _match_column(df_relatorio, ["UNIDADE DE NEGOCIO", "Unidade de Negócio", "Business Unit", "BU"])
+        if bu_col and not df_relatorio.empty:
+            with section_card():
+                st.subheader("Receita por Business Unit")
+                receita_bu = (
+                    df_relatorio.groupby(['Mês geração receita', bu_col])['VL UNI']
+                    .sum()
+                    .reset_index()
+                    .rename(columns={'Mês geração receita': 'Mês', 'VL UNI': 'Receita'})
+                )
+                fig_receita_bu = px.bar(
+                    receita_bu,
+                    x='Mês',
+                    y='Receita',
+                    color=bu_col,
+                    barmode='group',
+                    title="Performance Mensal por BU"
+                )
+                fig_receita_bu = configurar_layout_clean(fig_receita_bu, "Receita por BU", show_labels=False)
+                render_plotly_chart(fig_receita_bu)
+        else:
+            with section_card():
+                st.info("Dados de Business Unit não disponíveis para o período selecionado.")
+
+        receita_2024, _ = calcular_receita_mensal(df, 2024)
+        novos_2024, _ = calcular_novos_tutores_mes(df, 2024)
+        cohort_2024 = calcular_metricas_cohort(novos_2024, receita_2024, 2024)
+        receita_2025, _ = calcular_receita_mensal(df, 2025)
+        novos_2025, _ = calcular_novos_tutores_mes(df, 2025)
+        cohort_2025 = calcular_metricas_cohort(novos_2025, receita_2025, 2025)
+
+        with section_card():
+            st.subheader("CAC / LTV - Evolução 2024 × 2025")
+            comparativos = []
+            for ano_c, cohort_c in ((2024, cohort_2024), (2025, cohort_2025)):
+                if cohort_c is not None and not cohort_c.empty:
+                    cohort_temp = cohort_c[['Mês', 'CAC', 'LTV']].copy()
+                    cohort_temp['Ano'] = ano_c
+                    comparativos.append(cohort_temp)
+            if comparativos:
+                cohort_comparativo = pd.concat(comparativos, ignore_index=True)
+                fig_cac = px.line(
+                    cohort_comparativo,
+                    x='Mês',
+                    y='CAC',
+                    color='Ano',
+                    markers=True,
+                    title="CAC Mensal - Comparativo 2024 x 2025"
+                )
+                fig_cac = configurar_layout_clean(fig_cac, "CAC Mensal", show_labels=False)
+                render_plotly_chart(fig_cac)
+
+                fig_ltv = px.line(
+                    cohort_comparativo,
+                    x='Mês',
+                    y='LTV',
+                    color='Ano',
+                    markers=True,
+                    title="LTV Mensal - Comparativo 2024 x 2025"
+                )
+                fig_ltv = configurar_layout_clean(fig_ltv, "LTV Mensal", show_labels=False)
+                render_plotly_chart(fig_ltv)
+            else:
+                st.info("Sem dados consolidados para comparar CAC/LTV entre os anos.")
+
+        with section_card():
+            st.subheader("Resultados por LP - Principais Variações")
+            if leads_lp_mensal_relatorio is not None and not leads_lp_mensal_relatorio.empty:
+                if mes_atual and mes_anterior:
+                    comparativo_lp = leads_lp_mensal_relatorio[leads_lp_mensal_relatorio['Mês'].isin([mes_anterior, mes_atual])]
+                    pivot_lp = comparativo_lp.pivot_table(index='LP', columns='Mês', values='Receita', aggfunc='sum', fill_value=0)
+                    if mes_atual in pivot_lp.columns and mes_anterior in pivot_lp.columns:
+                        pivot_lp['Variação Receita'] = pivot_lp[mes_atual] - pivot_lp[mes_anterior]
+                        pivot_lp = pivot_lp.sort_values('Variação Receita', ascending=False).head(10)
+                        st.dataframe(pivot_lp.applymap(lambda x: f"R$ {x:,.0f}" if isinstance(x, (int, float)) else x), use_container_width=True)
+                    else:
+                        st.info("Ainda não há dados suficientes para comparar dois meses consecutivos.")
+                else:
+                    st.info("São necessários ao menos dois meses com dados para calcular variação de LP.")
+            else:
+                st.info("Sem dados mensais por LP para o período selecionado.")
+
+        with section_card():
+            st.subheader("Resultados Mensais - BU e Canal")
+            if bu_col and mes_atual and mes_anterior:
+                df_comp = df_relatorio[df_relatorio['Mês geração receita'].isin([mes_anterior, mes_atual])]
+                if not df_comp.empty:
+                    resumo_bu = (
+                        df_comp.groupby(['Mês geração receita', bu_col])['VL UNI']
+                        .sum()
+                        .reset_index()
+                        .rename(columns={'Mês geração receita': 'Mês', 'VL UNI': 'Receita'})
+                    )
+                    st.markdown("**Comparativo por BU**")
+                    st.dataframe(resumo_bu, use_container_width=True)
+                else:
+                    st.info("Sem dados suficientes para comparar BU entre os meses selecionados.")
+            else:
+                st.info("Sem dados suficientes de BU para montar o comparativo mensal.")
+
+            if leads_lp_mensal_relatorio is not None and mes_atual and mes_anterior:
+                resumo_canais = leads_lp_mensal_relatorio[leads_lp_mensal_relatorio['Mês'].isin([mes_anterior, mes_atual])]
+                resumo_canais = resumo_canais[['LP', 'Mês', 'Leads', 'Receita', 'CAC', 'ROAS']]
+                st.markdown("**Comparativo por Canal/LP**")
+                st.dataframe(resumo_canais, use_container_width=True)
+            else:
+                st.info("Sem dados de LP suficientes para comparar canais.")
+
+        with section_card():
+            st.subheader("Insights de Funil e Campanhas (Google Ads / YouTube)")
+            if leads_lp_mensal_relatorio is not None and not leads_lp_mensal_relatorio.empty:
+                funil_df = leads_lp_mensal_relatorio.copy()
+                funil_df['canal'] = funil_df['LP'].astype(str).str.lower().apply(
+                    lambda lp: 'Google Ads' if 'google' in lp else ('YouTube' if 'youtube' in lp else ('Meta' if 'meta' in lp else 'Outros'))
+                )
+                funil_df = funil_df[funil_df['Mês'].isin(meses_relatorio)]
+                kpis_funil = funil_df.groupby('canal').agg({
+                    'Leads': 'sum',
+                    'Investimento': 'sum',
+                    'Receita': 'sum',
+                    'CAC': 'mean',
+                    'ROAS': 'mean'
+                }).reset_index()
+                kpis_funil[['Investimento', 'Receita', 'CAC']] = kpis_funil[['Investimento', 'Receita', 'CAC']].fillna(0)
+                kpis_funil['ROAS'] = kpis_funil['ROAS'].fillna(0)
+                kpis_funil['Ticket Médio'] = funil_df.groupby('canal')['TM'].mean().values
+                st.dataframe(kpis_funil.style.format({
+                    'Investimento': 'R$ {:,.0f}',
+                    'Receita': 'R$ {:,.0f}',
+                    'CAC': 'R$ {:,.0f}',
+                    'ROAS': '{:,.1f}%',
+                    'Ticket Médio': 'R$ {:,.0f}'
+                }), use_container_width=True)
+            else:
+                st.info("Sem dados de campanhas Google/YouTube identificados para o período.")
+
+        st.markdown("---")
+        st.markdown(f"Relatório consolidado automaticamente com base nos dados de {ano_relatorio}. Utilize os filtros laterais para explorar outros períodos e detalhes.")
 
 # =============================================
 # APLICAÇÃO PRINCIPAL
