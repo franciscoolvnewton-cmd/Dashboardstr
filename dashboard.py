@@ -2638,17 +2638,20 @@ def main_dashboard():
         display: flex;
         align-items: center;
         gap: 1rem;
-        background: {COLORS['paper_bg']};
+        background: rgba(255, 255, 255, 0.75);
         border-radius: 18px;
         padding: 1.2rem 1.4rem;
-        border: 1px solid {COLORS['border']}40;
-        box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
     }}
 
     .metric-card:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 22px 42px rgba(15, 23, 42, 0.15);
+        transform: translateY(-3px);
+        box-shadow: 0 28px 50px rgba(15, 23, 42, 0.18);
+        border-color: rgba(255, 255, 255, 0.85);
     }}
 
     .metric-card .metric-icon {{
