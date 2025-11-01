@@ -53,7 +53,7 @@ px.defaults.template = "veros_light"
 # Configuração da página
 st.set_page_config(
     page_title="Dashboard Intelligence - Veros",
-    page_icon="📊",
+    page_icon="🧊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -2653,6 +2653,49 @@ def main_dashboard():
         box-shadow: 0 0 20px {COLORS['primary']}30;
     }}
 
+    .highlight-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.2rem;
+        margin-top: 1.2rem;
+    }}
+
+    .highlight-card {{
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        color: {COLORS['white']};
+        padding: 1.3rem 1.4rem;
+        border-radius: 18px;
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.24);
+        backdrop-filter: blur(6px);
+    }}
+
+    .highlight-card .highlight-icon {{
+        font-size: 2rem;
+    }}
+
+    .highlight-card h3 {{
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+    }}
+
+    .highlight-card p {{
+        margin: 0;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.85);
+    }}
+
+    .highlight-card span {{
+        display: block;
+        margin-top: 0.2rem;
+        font-size: 0.9rem;
+        color: rgba(255,255,255,0.85);
+    }}
+
     .animate-fade-up {{
         animation: fadeInUpSoft 0.75s ease both;
     }}
@@ -3007,6 +3050,74 @@ def main_dashboard():
                     unsafe_allow_html=True
                 )
 
+            with section_card():
+                st.subheader("Highlights Visuais do Período")
+                highlight_cards = []
+
+                if not receita_mensal.empty and 'Receita Líquida' in receita_mensal.columns:
+                    idx_maior = receita_mensal['Receita Líquida'].idxmax()
+                    if pd.notna(idx_maior):
+                        melhor_mes = receita_mensal.loc[idx_maior, 'Mês']
+                        receita_max = receita_mensal.loc[idx_maior, 'Receita Líquida']
+                        highlight_cards.append({
+                            "titulo": "Mês recorde",
+                            "valor": melhor_mes,
+                            "descricao": f"Receita líquida de R$ {receita_max:,.0f}",
+                            "icone": "📅",
+                            "classe": "gradient-primary"
+                        })
+
+                bu_col_visao = _match_column(df_filtrado, ["UNIDADE DE NEGOCIO", "Unidade de Negócio", "Business Unit", "BU"])
+                if bu_col_visao and not df_filtrado.empty:
+                    receita_bu_total = (
+                        df_filtrado.groupby(bu_col_visao)['VL UNI']
+                        .sum()
+                        .sort_values(ascending=False)
+                    )
+                    if not receita_bu_total.empty:
+                        melhor_bu = receita_bu_total.index[0]
+                        valor_bu = receita_bu_total.iloc[0]
+                        highlight_cards.append({
+                            "titulo": "BU destaque",
+                            "valor": melhor_bu,
+                            "descricao": f"Receita bruta de R$ {valor_bu:,.0f}",
+                            "icone": "🏥",
+                            "classe": "gradient-success"
+                        })
+
+                if leads_por_lp is not None and not leads_por_lp.empty:
+                    top_lp = leads_por_lp.iloc[0]
+                    highlight_cards.append({
+                        "titulo": "LP com maior retorno",
+                        "valor": top_lp['LP'],
+                        "descricao": f"ROAS {top_lp['ROAS']:.1f}% • Receita R$ {top_lp['Receita']:,.0f}",
+                        "icone": "🎯",
+                        "classe": "gradient-warning"
+                    })
+
+                if kpis_avancados and kpis_avancados.get('roi_medio', None) is not None:
+                    highlight_cards.append({
+                        "titulo": "ROI médio do período",
+                        "valor": f"{kpis_avancados['roi_medio']:.1f}%",
+                        "descricao": "Eficiência geral das campanhas frente ao investimento.",
+                        "icone": "📈",
+                        "classe": "gradient-info"
+                    })
+
+                if highlight_cards:
+                    cards_html = ["<div class='highlight-grid'>"]
+                    for card in highlight_cards:
+                        cards_html.append(
+                            f"<div class='highlight-card {card['classe']}'>"
+                            f"<div class='highlight-icon'>{card['icone']}</div>"
+                            f"<div><p>{card['titulo']}</p><h3>{card['valor']}</h3><span>{card['descricao']}</span></div>"
+                            f"</div>"
+                        )
+                    cards_html.append("</div>")
+                    st.markdown("".join(cards_html), unsafe_allow_html=True)
+                else:
+                    st.info("Carregue dados de receita e leads para exibir os destaques do período.")
+
             # Resumo das outras abas
             with section_card():
                 st.subheader("Resumo das Análises")
@@ -3034,6 +3145,101 @@ def main_dashboard():
                     st.markdown("**Análises Avançadas**")
                     if kpis_avancados:
                         st.metric("ROI Médio", f"{kpis_avancados.get('roi_medio', 0):.1f}%")
+
+            with section_card():
+                st.subheader("Panorama Visual")
+                
+                col1, col2 = st.columns(2)
+                ordem_meses_painel = MESES_POR_ANO.get(ano_selecionado, TODOS_MESES)
+
+                with col1:
+                    if bu_col_visao and not df_filtrado.empty:
+                        receita_bu_mensal = (
+                            df_filtrado.groupby(['Mês geração receita', bu_col_visao])['VL UNI']
+                            .sum()
+                            .reset_index()
+                            .rename(columns={'Mês geração receita': 'Mês', bu_col_visao: 'BU', 'VL UNI': 'Receita'})
+                        )
+                        meses_validos_bu = [m for m in ordem_meses_painel if m in receita_bu_mensal['Mês'].unique()]
+                        recentes = meses_validos_bu[-4:] if len(meses_validos_bu) > 4 else meses_validos_bu
+                        if recentes:
+                            receita_bu_mensal = receita_bu_mensal[receita_bu_mensal['Mês'].isin(recentes)]
+                        fig_receita_bu = px.bar(
+                            receita_bu_mensal,
+                            x='Mês',
+                            y='Receita',
+                            color='BU',
+                            title="Distribuição da Receita por BU (últimos meses)",
+                            text='Receita'
+                        )
+                        fig_receita_bu = configurar_layout_clean(fig_receita_bu, "Receita por BU", show_labels=False)
+                        fig_receita_bu.update_layout(barmode='stack')
+                        render_plotly_chart(fig_receita_bu)
+                    else:
+                        st.info("Inclua o campo de Business Unit na base para visualizar a distribuição por BU.")
+
+                with col2:
+                    if not leads_consolidado.empty:
+                        tendencia_df = leads_consolidado[leads_consolidado['Mês'].isin(ordem_meses_painel)].copy()
+                        fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
+                        fig_comp.add_trace(
+                            go.Bar(
+                                x=tendencia_df['Mês'],
+                                y=tendencia_df['Investimento'],
+                                name='Investimento',
+                                marker_color=COLORS['primary']
+                            ),
+                            secondary_y=False
+                        )
+                        fig_comp.add_trace(
+                            go.Scatter(
+                                x=tendencia_df['Mês'],
+                                y=tendencia_df['Receita'],
+                                name='Receita Líquida',
+                                mode='lines+markers',
+                                line=dict(color=COLORS['secondary'], width=3)
+                            ),
+                            secondary_y=True
+                        )
+                        fig_comp.update_layout(
+                            title=dict(text="Investimento vs Receita Líquida", font=dict(size=20, color=COLORS['text_primary'])),
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=1.02,
+                                xanchor="center",
+                                x=0.5,
+                                bgcolor="rgba(0,0,0,0)"
+                            ),
+                            plot_bgcolor=COLORS['plot_bg'],
+                            paper_bgcolor=COLORS['paper_bg'],
+                            margin=dict(l=50, r=50, t=80, b=60)
+                        )
+                        fig_comp.update_yaxes(
+                            title_text="Investimento (R$)",
+                            secondary_y=False,
+                            tickprefix="R$ "
+                        )
+                        fig_comp.update_yaxes(
+                            title_text="Receita Líquida (R$)",
+                            secondary_y=True,
+                            tickprefix="R$ "
+                        )
+                        render_plotly_chart(fig_comp)
+
+                        fig_roas = px.area(
+                            tendencia_df,
+                            x='Mês',
+                            y='ROAS',
+                            title="Evolução do ROAS (%)",
+                            color_discrete_sequence=[COLORS['accent']]
+                        )
+                        fig_roas.update_traces(mode='lines+markers', line=dict(width=3))
+                        fig_roas = configurar_layout_clean(fig_roas, "Evolução do ROAS (%)", show_labels=False)
+                        fig_roas.update_yaxes(title_text="ROAS (%)", ticksuffix="%", tickformat=".1f")
+                        render_plotly_chart(fig_roas)
+                    else:
+                        st.info("Para visualizar investimento e ROAS carregue a base de leads consolidada.")
 
             with section_card():
                 st.subheader("Métricas Principais")
