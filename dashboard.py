@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
 import numpy as np
 import os
@@ -2635,67 +2635,55 @@ def main_dashboard():
     
     /* Melhorias visuais adicionais */
     .metric-card {{
-        background: {COLORS['gradient_1']};
-        border-radius: 15px;
-        padding: 1.5rem;
-        color: white;
-        margin: 0.5rem 0;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-    }}
-    
-    .metric-card:hover {{
-        transform: translateY(-5px);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
-    }}
-    
-    .glow-effect {{
-        box-shadow: 0 0 20px {COLORS['primary']}30;
-    }}
-
-    .highlight-grid {{
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1.2rem;
-        margin-top: 1.2rem;
-    }}
-
-    .highlight-card {{
         display: flex;
         align-items: center;
-        gap: 0.9rem;
-        color: {COLORS['white']};
-        padding: 1.3rem 1.4rem;
+        gap: 1rem;
+        background: {COLORS['paper_bg']};
         border-radius: 18px;
-        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.24);
-        backdrop-filter: blur(6px);
+        padding: 1.2rem 1.4rem;
+        border: 1px solid {COLORS['border']}40;
+        box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }}
 
-    .highlight-card .highlight-icon {{
-        font-size: 2rem;
+    .metric-card:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 22px 42px rgba(15, 23, 42, 0.15);
     }}
 
-    .highlight-card h3 {{
-        margin: 0;
+    .metric-card .metric-icon {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: {COLORS['primary']}1F;
+        color: {COLORS['primary']};
         font-size: 1.4rem;
-        font-weight: 700;
     }}
 
-    .highlight-card p {{
-        margin: 0;
+    .metric-card .metric-title {{
         font-size: 0.8rem;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: rgba(255,255,255,0.85);
+        color: {COLORS['text_secondary']};
+        margin: 0;
     }}
 
-    .highlight-card span {{
-        display: block;
-        margin-top: 0.2rem;
-        font-size: 0.9rem;
-        color: rgba(255,255,255,0.85);
+    .metric-card .metric-value {{
+        margin: 0.2rem 0 0 0;
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: {COLORS['text_primary']};
     }}
 
+    .metric-card .metric-sub {{
+        margin: 0.1rem 0 0 0;
+        font-size: 0.92rem;
+        color: {COLORS['text_secondary']};
+    }}
+    
     .animate-fade-up {{
         animation: fadeInUpSoft 0.75s ease both;
     }}
@@ -3051,23 +3039,17 @@ def main_dashboard():
                 )
 
             with section_card():
-                st.subheader("Highlights Visuais do Período")
-                highlight_cards = []
+                st.subheader("Resumo Executivo")
+                cards_data = []
 
                 if not receita_mensal.empty and 'Receita Líquida' in receita_mensal.columns:
                     idx_maior = receita_mensal['Receita Líquida'].idxmax()
                     if pd.notna(idx_maior):
                         melhor_mes = receita_mensal.loc[idx_maior, 'Mês']
                         receita_max = receita_mensal.loc[idx_maior, 'Receita Líquida']
-                        highlight_cards.append({
-                            "titulo": "Mês recorde",
-                            "valor": melhor_mes,
-                            "descricao": f"Receita líquida de R$ {receita_max:,.0f}",
-                            "icone": "📅",
-                            "classe": "gradient-primary"
-                        })
+                        cards_data.append({'icon': '📅', 'title': 'Mês destaque', 'value': melhor_mes, 'subtitle': f'Receita líquida de R$ {receita_max:,.0f}'})
 
-                bu_col_visao = _match_column(df_filtrado, ["UNIDADE DE NEGOCIO", "Unidade de Negócio", "Business Unit", "BU"])
+                bu_col_visao = _match_column(df_filtrado, ['UNIDADE DE NEGOCIO', 'Unidade de Negócio', 'Business Unit', 'BU'])
                 if bu_col_visao and not df_filtrado.empty:
                     receita_bu_total = (
                         df_filtrado.groupby(bu_col_visao)['VL UNI']
@@ -3077,46 +3059,31 @@ def main_dashboard():
                     if not receita_bu_total.empty:
                         melhor_bu = receita_bu_total.index[0]
                         valor_bu = receita_bu_total.iloc[0]
-                        highlight_cards.append({
-                            "titulo": "BU destaque",
-                            "valor": melhor_bu,
-                            "descricao": f"Receita bruta de R$ {valor_bu:,.0f}",
-                            "icone": "🏥",
-                            "classe": "gradient-success"
-                        })
+                        cards_data.append({'icon': '🏥', 'title': 'BU com maior receita', 'value': melhor_bu, 'subtitle': f'Receita bruta de R$ {valor_bu:,.0f}'})
 
                 if leads_por_lp is not None and not leads_por_lp.empty:
                     top_lp = leads_por_lp.iloc[0]
-                    highlight_cards.append({
-                        "titulo": "LP com maior retorno",
-                        "valor": top_lp['LP'],
-                        "descricao": f"ROAS {top_lp['ROAS']:.1f}% • Receita R$ {top_lp['Receita']:,.0f}",
-                        "icone": "🎯",
-                        "classe": "gradient-warning"
-                    })
+                    cards_data.append({'icon': '🎯', 'title': 'LP mais eficiente', 'value': top_lp['LP'], 'subtitle': f"ROAS {top_lp['ROAS']:.1f}% • Receita R$ {top_lp['Receita']:,.0f}"})
 
-                if kpis_avancados and kpis_avancados.get('roi_medio', None) is not None:
-                    highlight_cards.append({
-                        "titulo": "ROI médio do período",
-                        "valor": f"{kpis_avancados['roi_medio']:.1f}%",
-                        "descricao": "Eficiência geral das campanhas frente ao investimento.",
-                        "icone": "📈",
-                        "classe": "gradient-info"
-                    })
+                if kpis_avancados and kpis_avancados.get('roi_medio') is not None:
+                    cards_data.append({'icon': '📈', 'title': 'ROI médio do período', 'value': f"{kpis_avancados['roi_medio']:.1f}%", 'subtitle': 'Eficiência geral das campanhas.'})
 
-                if highlight_cards:
-                    cards_html = ["<div class='highlight-grid'>"]
-                    for card in highlight_cards:
-                        cards_html.append(
-                            f"<div class='highlight-card {card['classe']}'>"
-                            f"<div class='highlight-icon'>{card['icone']}</div>"
-                            f"<div><p>{card['titulo']}</p><h3>{card['valor']}</h3><span>{card['descricao']}</span></div>"
-                            f"</div>"
+                if cards_data:
+                    cols_cards = st.columns(len(cards_data))
+                    for col_card, card in zip(cols_cards, cards_data):
+                        col_card.markdown(
+                            f"""<div class='metric-card'>
+                                    <div class='metric-icon'>{card['icon']}</div>
+                                    <div>
+                                        <p class='metric-title'>{card['title']}</p>
+                                        <h3 class='metric-value'>{card['value']}</h3>
+                                        <p class='metric-sub'>{card['subtitle']}</p>
+                                    </div>
+                                </div>""",
+                            unsafe_allow_html=True
                         )
-                    cards_html.append("</div>")
-                    st.markdown("".join(cards_html), unsafe_allow_html=True)
                 else:
-                    st.info("Carregue dados de receita e leads para exibir os destaques do período.")
+                    st.info('Carregue dados de receita e leads para exibir os destaques do período.')
 
             # Resumo das outras abas
             with section_card():
@@ -4072,3 +4039,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
